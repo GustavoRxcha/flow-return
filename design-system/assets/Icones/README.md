@@ -1,0 +1,1 @@
+Ícones em vetor, cada um com sua cor de fundo. `icone-preto` é o padrão de app e favicon. `icone-branco` e `icone-verde` são alternativas. `icone-flow-return` é o ícone do serviço. Em `png/` estão exportações de `icone-preto`.

@@ -1,0 +1,1 @@
+Logos em vetor, com a palavra em Nunito 900. `-preto`: tinta `#0a0a0a` com ponto `#14624c`, para fundo branco. `-branco`: tinta branca com ponto `#4fd1a5`, para fundo preto. `-mono-preto` e `-mono-branco`: uma cor só, para verde e impressão.

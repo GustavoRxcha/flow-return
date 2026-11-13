@@ -1,0 +1,53 @@
+/* Calendário da Flow Return. Componente do produto: use apenas tokens. */
+.fr-cal-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-12); }
+.fr-cal-arrow { padding: 0; width: var(--control-sm); }
+
+.fr-cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.fr-cal-names { padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); color: var(--ink-muted); text-align: center; }
+.fr-cal-month .fr-cal-week { border-bottom: 1px solid var(--line); }
+.fr-cal-month .fr-cal-week:last-child { border-bottom: 0; }
+
+.fr-cal-day {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-4);
+  min-width: 0; min-height: var(--control-lg); padding: var(--space-4) 0;
+  border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer;
+}
+.fr-cal-number {
+  display: flex; align-items: center; justify-content: center;
+  width: var(--space-32); height: var(--space-32); border-radius: var(--radius-pill);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.fr-cal-day:hover .fr-cal-number { background: var(--surface-alt); }
+.fr-cal-day[aria-current="date"] .fr-cal-number { color: var(--accent); }
+.fr-cal-day[aria-pressed="true"] .fr-cal-number { background: var(--surface-inverse); color: var(--on-inverse); }
+.fr-cal-day[aria-pressed="true"][aria-current="date"] .fr-cal-number { background: var(--brand); color: var(--on-brand); }
+.fr-cal-dot { width: var(--space-8); height: var(--space-8); border-radius: var(--radius-pill); }
+.fr-cal-dot--on { background: var(--accent); }
+
+.fr-cal-event {
+  display: flex; flex-direction: column; width: 100%; min-width: 0; padding: var(--space-8) var(--space-12);
+  border: 0; border-radius: var(--radius-xs); background: var(--accent-soft); color: var(--on-accent-soft);
+  font: inherit; text-align: left; overflow: hidden; cursor: pointer;
+}
+.fr-cal-event:hover { background: var(--line); color: var(--ink); }
+.fr-cal-event--past { background: var(--surface-alt); color: var(--ink-soft); }
+.fr-cal-event > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.fr-cal-timeline { --fr-hour: var(--space-64); position: relative; }
+.fr-cal-hour {
+  display: flex; align-items: flex-start; width: 100%; height: var(--fr-hour); padding: 0;
+  border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink-muted); font: inherit; cursor: pointer;
+}
+.fr-cal-hour:hover { background: var(--surface-alt); }
+.fr-cal-hour > span { width: var(--space-48); text-align: left; }
+.fr-cal-track { position: absolute; inset: 0 0 0 var(--space-48); pointer-events: none; }
+.fr-cal-track .fr-cal-event {
+  position: absolute; pointer-events: auto; padding: 2px var(--space-8); justify-content: center;
+  top: calc(var(--fr-start) * var(--fr-hour)); height: calc(var(--fr-length) * var(--fr-hour) - 2px); min-height: var(--space-24);
+  left: calc(var(--fr-column) / var(--fr-columns) * 100%); width: calc(100% / var(--fr-columns) - 2px);
+}
+.fr-cal-now { position: absolute; left: 0; right: 0; top: calc(var(--fr-now) * var(--fr-hour)); height: 2px; background: var(--accent); }
+.fr-cal-now::before {
+  content: ""; position: absolute; left: calc(-1 * var(--space-4)); top: -3px;
+  width: var(--space-8); height: var(--space-8); border-radius: var(--radius-pill); background: var(--accent);
+}

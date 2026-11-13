@@ -1,0 +1,5 @@
+/* Único arquivo com cor fora do design system. Amarelo pedido para selos de atenção. */
+:root {
+  --fr-warning-soft: #faf1d6;
+  --fr-on-warning-soft: #6b4f00;
+}
