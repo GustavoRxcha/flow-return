@@ -224,9 +224,8 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
                 <button type="button" className="fr-person__open" aria-label={t('customers.contactOf', { name: customer.name })} onClick={() => setContact(customer.phone)}>
                   <span className="ef-item__body">
                     <span className="ef-item__title">{customer.name}</span>
-                    <span className="ef-item__meta">
-                      {formatBrPhone(customer.phone)} · {t('customers.lastShort', { date: formatDate(lastVisit) })}
-                    </span>
+                    <span className="ef-item__meta">{formatBrPhone(customer.phone)}</span>
+                    <span className="ef-item__meta">{t('customers.lastShort', { date: formatDate(lastVisit) })}</span>
                     <span className="fr-person__next">
                       {blocked ? (
                         <span className="ef-badge">{t('customers.doNotCall')}</span>

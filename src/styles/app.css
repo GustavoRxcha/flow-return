@@ -155,3 +155,11 @@ input.ef-input::-webkit-date-and-time-value { text-align: left; }
   .fr-money { grid-template-columns: minmax(0, 1fr); gap: var(--space-8); }
   .fr-page .fr-money > .ef-card { flex-direction: row-reverse; align-items: center; justify-content: space-between; padding: var(--space-12) var(--space-16); }
 }
+
+/*
+ * Nada passa da largura da tela. O Safari do iPhone deixa arrastar a página para o lado
+ * se qualquer peça sobrar, mesmo invisível. clip corta sem criar rolagem, e o topo continua fixo.
+ */
+body { overflow-x: clip; }
+.fr-page { overflow-x: clip; }
+select.ef-input { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
