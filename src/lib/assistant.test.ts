@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acceptedProposal, asksOwnAppointments, availabilityIn, availabilityReply, availabilityText, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, freeTimes, isYes, looksLikeName, mentionsSomeoneElse, listServicesInLines, lookupTimes, matchServices, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, nearestTime, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, readTime, stopRequest, systemPrompt, wantsChange, type AssistantContext, type PendingChange, type ReplyFacts } from './assistant'
+import { acceptedProposal, assistantTools, dateFromDayMonth, asksOwnAppointments, availabilityIn, availabilityReply, availabilityText, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, freeTimes, isYes, looksLikeName, mentionsSomeoneElse, listServicesInLines, lookupTimes, matchServices, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, nearestTime, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, readTime, stopRequest, systemPrompt, wantsChange, type AssistantContext, type PendingChange, type ReplyFacts } from './assistant'
 import { DEFAULT_ASSISTANT, type Appointment, type Professional, type Service } from './types'
 import { businessFacts, EMPTY_BUSINESS_INFO, type BusinessInfo } from './businessInfo'
 
@@ -582,5 +582,53 @@ describe('respostas com número e horários', () => {
     const withTimes = { ...facts, times: known, offered: known, available }
     expect(findInvented('Tenho das 09:00 às 11:00. Qual fica melhor?', withTimes, context())).toBeNull()
     expect(findInvented('Tenho das 09:00 às 11:00: 09:00, 09:30, 10:00 e 10:30.', withTimes, context())).toContain('uma vez só')
+  })
+})
+
+describe('ferramentas com listas fechadas e dia e mês sem ano', () => {
+  it('serviço e profissional só aceitam nomes da lista; o dia vem em dia e mês', () => {
+    const [ver] = assistantTools(context())
+    const { properties, required } = ver.function.parameters as unknown as { properties: Record<string, { enum?: string[] }>; required: string[] }
+    expect(properties.servico.enum).toEqual(['Corte', 'Corte + Barba', 'Pezinho'])
+    expect(properties.profissional.enum).toEqual(['Cleber Bigode', 'Rocha Tesoura de Ouro'])
+    expect(required).toEqual(['servico', 'dia', 'mes', 'pedido'])
+  })
+
+  it('sem ano, vale a próxima vez que a data acontece', () => {
+    expect(dateFromDayMonth(20, 11, '2026-11-06')).toBe('2026-11-20')
+    expect(dateFromDayMonth(5, 1, '2026-12-20')).toBe('2027-01-05')
+    expect(dateFromDayMonth(31, 2, '2026-11-06')).toBeNull()
+  })
+
+  it('vale o dia que a pessoa pediu, com as palavras dela na conversa', () => {
+    const ctx = context({ customerMessages: ['quero um pezinho segunda'] })
+    expect(lookupTimes({ servico: 'Pezinho', dia: 9, mes: 11, pedido: 'segunda' }, ctx, [])).toMatchObject({ ok: true, dia: 'segunda-feira, 09/11' })
+  })
+
+  it('em outra língua, confere que as palavras estão na conversa', () => {
+    const ctx = context({ customerMessages: ['can I get a pezinho on monday?'] })
+    expect(lookupTimes({ servico: 'Pezinho', dia: 9, mes: 11, pedido: 'monday' }, ctx, [])).toMatchObject({ ok: true })
+  })
+
+  it('a IA não escolhe dia sozinha', () => {
+    const ctx = context({ customerMessages: ['quero um pezinho segunda'] })
+    expect(lookupTimes({ servico: 'Pezinho', dia: 12, mes: 11, pedido: 'quinta' }, ctx, [])).toMatchObject({ ok: false })
+    expect(lookupTimes({ servico: 'Pezinho', dia: 12, mes: 11, pedido: 'segunda' }, ctx, [])).toMatchObject({ ok: false })
+    expect(lookupTimes({ servico: 'Pezinho', dia: 12, mes: 11, pedido: '' }, ctx, [])).toMatchObject({ ok: false })
+  })
+
+  it('o dia oferecido pelo sistema vale quando a pessoa aceita', () => {
+    const ctx = context({ customerMessages: ['pode ser'] })
+    expect(lookupTimes({ servico: 'Pezinho', dia: 10, mes: 11, pedido: 'pode ser' }, ctx, ['2026-11-10'])).toMatchObject({ ok: true })
+  })
+
+  it('não marca além de 60 dias', () => {
+    const ctx = context({ customerMessages: ['dia 20 de fevereiro'] })
+    expect(lookupTimes({ servico: 'Pezinho', dia: 20, mes: 2, pedido: 'dia 20 de fevereiro' }, ctx, [])).toMatchObject({ ok: false, erro: expect.stringContaining('60 dias') })
+  })
+
+  it('o prompt deixa o que muda a cada mensagem no fim, para o resto ser reaproveitado', () => {
+    const prompt = systemPrompt(context())
+    expect(prompt.indexOf('Serviços:')).toBeLessThan(prompt.indexOf('Hoje é'))
   })
 })

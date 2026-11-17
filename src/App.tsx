@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { GestorApp } from './components/GestorApp'
 import { Login } from './components/Login'
+import { usePreferences } from './components/Preferences'
 import { ReturnClientApp } from './components/ReturnClientApp'
 import { api, ApiError } from './lib/api'
 import type { ReturnClient, SessionUser } from './lib/types'
@@ -13,6 +14,7 @@ interface Session {
 export function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [failed, setFailed] = useState(false)
+  const { t } = usePreferences()
 
   const refresh = useCallback(async () => {
     try {
@@ -33,8 +35,8 @@ export function App() {
     setSession(null)
   }
 
-  if (failed) return <p className="fr-status">Não foi possível conectar. Tente de novo em instantes.</p>
-  if (session === undefined) return <p className="fr-status">Carregando...</p>
+  if (failed) return <p className="fr-status">{t('common.connectFailed')}</p>
+  if (session === undefined) return <p className="fr-status">{t('common.loading')}</p>
   if (session === null) return <Login onSuccess={refresh} />
   if (session.user.role === 'gestor') return <GestorApp user={session.user} onLogout={logout} />
   return <ReturnClientApp key={session.user.id} returnClient={session.returnClient!} onLogout={logout} />

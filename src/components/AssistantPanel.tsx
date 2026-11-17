@@ -2,23 +2,17 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../lib/api'
 import { formatBrPhone, normalizeBrPhone } from '../lib/phone'
 import { PAYMENT_METHODS, YES_NO_QUESTIONS, type BusinessInfo, type PaymentMethod, type YesNo } from '../lib/businessInfo'
+import type { MessageKey } from '../lib/i18n'
 import type { AssistantSettings, EndCustomer } from '../lib/types'
+import { usePreferences } from './Preferences'
 
-/** Da segunda ao domingo, como o negócio costuma pensar a semana. */
-const WEEK = [
-  { day: 1, label: 'Seg' },
-  { day: 2, label: 'Ter' },
-  { day: 3, label: 'Qua' },
-  { day: 4, label: 'Qui' },
-  { day: 5, label: 'Sex' },
-  { day: 6, label: 'Sáb' },
-  { day: 0, label: 'Dom' },
-]
+/** Da segunda ao domingo, como o negócio costuma pensar a semana. Os nomes vêm de `assistant.week`. */
+const WEEK = [1, 2, 3, 4, 5, 6, 0]
 
-const ANSWERS: Array<{ value: string; label: string; answer: YesNo }> = [
-  { value: '', label: 'Não informado', answer: null },
-  { value: 'sim', label: 'Sim', answer: true },
-  { value: 'nao', label: 'Não', answer: false },
+const ANSWERS: Array<{ value: string; label: MessageKey; answer: YesNo }> = [
+  { value: '', label: 'assistant.notInformed', answer: null },
+  { value: 'sim', label: 'assistant.yes', answer: true },
+  { value: 'nao', label: 'assistant.no', answer: false },
 ]
 
 interface Reply {
@@ -40,21 +34,23 @@ interface Props {
 }
 
 export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, onFailure, onDataChanged }: Props) {
-  const [form, setForm] = useState<(AssistantSettings & { phoneText: string }) | null>(null)
+  const [form, setForm] = useState<(AssistantSettings & { phoneText: string; ownerPhoneText: string }) | null>(null)
   const [phoneError, setPhoneError] = useState('')
+  const [ownerPhoneError, setOwnerPhoneError] = useState('')
   const [formError, setFormError] = useState('')
   const [saved, setSaved] = useState(false)
+  const { t, tp, tl } = usePreferences()
 
   function load(reply: Reply) {
-    const { phone } = reply.assistant
-    setForm({ ...reply.assistant, phoneText: phone ? formatBrPhone(phone) : '' })
+    const { phone, ownerPhone } = reply.assistant
+    setForm({ ...reply.assistant, phoneText: phone ? formatBrPhone(phone) : '', ownerPhoneText: ownerPhone ? formatBrPhone(ownerPhone) : '' })
   }
 
   useEffect(() => {
     api<Reply>('/workspace/assistant').then(load).catch(onFailure)
   }, [onFailure])
 
-  if (!form) return <p className="fr-status">Carregando...</p>
+  if (!form) return <p className="fr-status">{t('common.loading')}</p>
 
   function change(partial: Partial<typeof form>) {
     setSaved(false)
@@ -76,16 +72,19 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
   async function save(event: FormEvent) {
     event.preventDefault()
     setPhoneError('')
+    setOwnerPhoneError('')
     setFormError('')
-    if (!form!.openDays.length) return setFormError('Escolha pelo menos um dia de atendimento.')
-    if (form!.opensAt >= form!.closesAt) return setFormError('O horário de abrir precisa ser antes do de fechar.')
-    const { phoneText, ...settings } = form!
+    if (!form!.openDays.length) return setFormError(t('assistant.pickDay'))
+    if (form!.opensAt >= form!.closesAt) return setFormError(t('assistant.hoursOrder'))
+    const { phoneText, ownerPhoneText, ...settings } = form!
     try {
-      load(await api<Reply>('/workspace/assistant', { method: 'PUT', body: { ...settings, phone: phoneText } }))
+      load(await api<Reply>('/workspace/assistant', { method: 'PUT', body: { ...settings, phone: phoneText, ownerPhone: ownerPhoneText } }))
       setSaved(true)
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === 'telefone_invalido') {
-        setPhoneError('Confira o número. Use DDD e telefone, como (11) 91234-5678.')
+        setPhoneError(t('assistant.badPhone'))
+      } else if (failure instanceof ApiError && failure.code === 'telefone_dono_invalido') {
+        setOwnerPhoneError(t('assistant.badPhone'))
       } else {
         onFailure(failure)
       }
@@ -95,20 +94,18 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
   return (
     <section className="fr-stack-lg">
       <div className="ef-stack">
-        <h1 className="title-lg">Atendente IA</h1>
-        <p className="ef-card__text">
-          Ela conversa com seus clientes, consulta os serviços e a agenda e marca o horário. Só fala o que está no sistema.
-        </p>
+        <h1 className="title-lg">{t('assistant.title')}</h1>
+        <p className="ef-card__text">{t('assistant.intro')}</p>
       </div>
 
-      <p className="ef-alert">Ainda não está ligada ao WhatsApp. O chat desta tela já funciona de verdade: o que ela marcar ou desmarcar muda sua agenda.</p>
+      <p className="ef-alert">{t('assistant.notConnected')}</p>
 
       <div className="fr-assistant">
         <form className="fr-stack-lg" onSubmit={save}>
           <div className="ef-card">
-            <h2 className="title-md">Número e nome</h2>
+            <h2 className="title-md">{t('assistant.numberAndName')}</h2>
             <label className="ef-field">
-              <span className="ef-field__label">Número do WhatsApp da atendente</span>
+              <span className="ef-field__label">{t('assistant.phone')}</span>
               <input
                 className="ef-input"
                 inputMode="tel"
@@ -120,65 +117,79 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
               {phoneError ? (
                 <span className="ef-field__error">{phoneError}</span>
               ) : (
-                <span className="ef-field__hint">É o número que a API do WhatsApp vai usar. Seus clientes vão chamar nele.</span>
+                <span className="ef-field__hint">{t('assistant.phoneHint')}</span>
               )}
             </label>
             <label className="ef-field">
-              <span className="ef-field__label">Nome da atendente</span>
+              <span className="ef-field__label">{t('assistant.ownerPhone')}</span>
+              <input
+                className="ef-input"
+                inputMode="tel"
+                placeholder="(11) 98765-4321"
+                value={form.ownerPhoneText}
+                aria-invalid={ownerPhoneError ? true : undefined}
+                onChange={(event) => change({ ownerPhoneText: event.target.value })}
+              />
+              {ownerPhoneError ? (
+                <span className="ef-field__error">{ownerPhoneError}</span>
+              ) : (
+                <span className="ef-field__hint">{t('assistant.ownerPhoneHint')}</span>
+              )}
+            </label>
+            <label className="ef-field">
+              <span className="ef-field__label">{t('assistant.name')}</span>
               <input
                 className="ef-input"
                 maxLength={40}
-                placeholder="Se ficar vazio, usa o nome do negócio"
+                placeholder={t('assistant.namePlaceholder')}
                 value={form.name}
                 onChange={(event) => change({ name: event.target.value })}
               />
-              <span className="ef-field__hint">Ela sempre avisa que é uma atendente virtual.</span>
+              <span className="ef-field__hint">{t('assistant.nameHint')}</span>
             </label>
           </div>
 
           <div className="ef-card">
-            <h2 className="title-md">Ensine sua atendente</h2>
-            <p className="ef-card__text">
-              O que ela precisa saber para responder seus clientes. O que ficar sem resposta, ela diz que não tem a informação.
-            </p>
+            <h2 className="title-md">{t('assistant.teachTitle')}</h2>
+            <p className="ef-card__text">{t('assistant.teachText')}</p>
             <label className="ef-field">
-              <span className="ef-field__label">Endereço do estabelecimento</span>
+              <span className="ef-field__label">{t('assistant.address')}</span>
               <input
                 className="ef-input"
                 maxLength={160}
-                placeholder="Rua das Flores, 120, Centro, São Paulo"
+                placeholder={t('assistant.addressPlaceholder')}
                 value={form.info.address}
                 onChange={(event) => changeInfo({ address: event.target.value })}
               />
             </label>
             <label className="ef-field">
-              <span className="ef-field__label">Ponto de referência</span>
+              <span className="ef-field__label">{t('assistant.reference')}</span>
               <input
                 className="ef-input"
                 maxLength={120}
-                placeholder="Ao lado da padaria"
+                placeholder={t('assistant.referencePlaceholder')}
                 value={form.info.reference}
                 onChange={(event) => changeInfo({ reference: event.target.value })}
               />
             </label>
-            {YES_NO_QUESTIONS.map(({ key, question }) => (
+            {YES_NO_QUESTIONS.map(({ key }) => (
               <label key={key} className="ef-field">
-                <span className="ef-field__label">{question}</span>
+                <span className="ef-field__label">{t(`assistant.question.${key}`)}</span>
                 <select
                   className="ef-input"
                   value={ANSWERS.find(({ answer }) => answer === form.info[key])!.value}
                   onChange={(event) => changeInfo({ [key]: ANSWERS.find(({ value }) => value === event.target.value)!.answer })}
                 >
                   {ANSWERS.map(({ value, label }) => (
-                    <option key={value} value={value}>{label}</option>
+                    <option key={value} value={value}>{t(label)}</option>
                   ))}
                 </select>
               </label>
             ))}
             <div className="ef-field" role="group" aria-labelledby="assistant-payments">
-              <span id="assistant-payments" className="ef-field__label">Formas de pagamento</span>
+              <span id="assistant-payments" className="ef-field__label">{t('assistant.payments')}</span>
               <div className="fr-weekdays">
-                {PAYMENT_METHODS.map(({ id, label }) => (
+                {PAYMENT_METHODS.map(({ id }) => (
                   <label key={id} className="ef-choice">
                     <input
                       type="checkbox"
@@ -186,19 +197,19 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
                       checked={form.info.payments.includes(id)}
                       onChange={(event) => togglePayment(id, event.target.checked)}
                     />
-                    {label}
+                    {t(`assistant.payment.${id}`)}
                   </label>
                 ))}
               </div>
             </div>
-            <p className="ef-field__hint">Serviços, valores, profissionais e agenda ela já consulta sozinha.</p>
+            <p className="ef-field__hint">{t('assistant.knowsHint')}</p>
           </div>
 
           <div className="ef-card">
-            <h2 className="title-md">Horário de atendimento</h2>
-            <p className="ef-card__text">Ela só oferece horários dentro destes dias e horas.</p>
+            <h2 className="title-md">{t('assistant.hoursTitle')}</h2>
+            <p className="ef-card__text">{t('assistant.hoursText')}</p>
             <div className="fr-weekdays">
-              {WEEK.map(({ day, label }) => (
+              {WEEK.map((day, index) => (
                 <label key={day} className="ef-choice">
                   <input
                     type="checkbox"
@@ -206,24 +217,24 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
                     checked={form.openDays.includes(day)}
                     onChange={(event) => toggleDay(day, event.target.checked)}
                   />
-                  {label}
+                  {tl('assistant.week')[index]}
                 </label>
               ))}
             </div>
             <div className="fr-hours">
               <label className="ef-field">
-                <span className="ef-field__label">Abre às</span>
+                <span className="ef-field__label">{t('assistant.opensAt')}</span>
                 <input className="ef-input" type="time" value={form.opensAt} onChange={(event) => change({ opensAt: event.target.value })} />
               </label>
               <label className="ef-field">
-                <span className="ef-field__label">Fecha às</span>
+                <span className="ef-field__label">{t('assistant.closesAt')}</span>
                 <input className="ef-input" type="time" value={form.closesAt} onChange={(event) => change({ closesAt: event.target.value })} />
               </label>
             </div>
           </div>
 
           <div className="ef-card">
-            <h2 className="title-md">Clientes sumidos</h2>
+            <h2 className="title-md">{t('assistant.lostTitle')}</h2>
             <label className="ef-choice">
               <input
                 type="checkbox"
@@ -232,18 +243,17 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
                 checked={form.reactivationEnabled}
                 onChange={(event) => change({ reactivationEnabled: event.target.checked })}
               />
-              Chamar clientes sumidos sozinha
+              {t('assistant.autoCall')}
             </label>
             <p className="ef-card__text">
-              {inQueue === 1 ? 'Hoje, 1 cliente está na fila' : `Hoje, ${inQueue} clientes estão na fila`} depois de{' '}
-              {inactiveDays} dias sem vir. O limite é de {dailyLimit} por dia. Prazo, limite e mensagem ficam em Ajustes.
+              {tp('assistant.queue', inQueue, { days: inactiveDays, limit: dailyLimit })}
             </p>
-            <p className="ef-field__hint">Só começa quando o WhatsApp estiver ligado. Quem pedir para parar não recebe mais.</p>
+            <p className="ef-field__hint">{t('assistant.lostHint')}</p>
           </div>
 
           {formError && <p className="ef-alert ef-alert--danger" role="alert">{formError}</p>}
-          {saved && <p className="ef-alert ef-alert--success" role="status">Configuração salva.</p>}
-          <button type="submit" className="ef-button ef-button--primary">Salvar</button>
+          {saved && <p className="ef-alert ef-alert--success" role="status">{t('assistant.saved')}</p>}
+          <button type="submit" className="ef-button ef-button--primary">{t('common.save')}</button>
         </form>
 
         <AssistantTest customers={customers} onFailure={onFailure} onDataChanged={onDataChanged} />
@@ -266,6 +276,7 @@ function AssistantTest({ customers, onFailure, onDataChanged }: TestProps) {
   const [phoneError, setPhoneError] = useState('')
   const [waiting, setWaiting] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
+  const { t } = usePreferences()
   const phone = customerPhone || normalizeBrPhone(newPhone)
 
   useEffect(() => {
@@ -278,7 +289,7 @@ function AssistantTest({ customers, onFailure, onDataChanged }: TestProps) {
     const message = text.trim()
     if (!message || waiting) return
     if (!phone) {
-      setPhoneError('Informe um número com DDD, como (11) 91234-5678.')
+      setPhoneError(t('assistant.phoneRequired'))
       return
     }
     setPhoneError('')
@@ -294,7 +305,7 @@ function AssistantTest({ customers, onFailure, onDataChanged }: TestProps) {
       if (trail.length) onDataChanged()
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === 'ia_desligada') {
-        setLines((current) => [...current, { from: 'sistema', text: 'A IA não respondeu. Abra o Ollama e tente de novo.' }])
+        setLines((current) => [...current, { from: 'sistema', text: t('assistant.aiOff') }])
       } else {
         onFailure(failure)
       }
@@ -317,15 +328,15 @@ function AssistantTest({ customers, onFailure, onDataChanged }: TestProps) {
   return (
     <div className="ef-card">
       <div className="fr-spread">
-        <h2 className="title-md">Testar a atendente</h2>
+        <h2 className="title-md">{t('assistant.testTitle')}</h2>
         <button type="button" className="ef-button ef-button--ghost ef-button--sm" onClick={() => restart()}>
-          Recomeçar
+          {t('assistant.restart')}
         </button>
       </div>
       <label className="ef-field">
-        <span className="ef-field__label">Quem está escrevendo</span>
+        <span className="ef-field__label">{t('assistant.who')}</span>
         <select className="ef-input" value={customerPhone} onChange={(event) => changeCustomer(event.target.value)}>
-          <option value="">Número novo</option>
+          <option value="">{t('assistant.newNumber')}</option>
           {customers.map((customer) => (
             <option key={customer.phone} value={customer.phone}>{customer.name}</option>
           ))}
@@ -333,7 +344,7 @@ function AssistantTest({ customers, onFailure, onDataChanged }: TestProps) {
       </label>
       {!customerPhone && (
         <label className="ef-field">
-          <span className="ef-field__label">Número de quem escreve</span>
+          <span className="ef-field__label">{t('assistant.whoPhone')}</span>
           <input
             className="ef-input"
             inputMode="tel"
@@ -345,33 +356,33 @@ function AssistantTest({ customers, onFailure, onDataChanged }: TestProps) {
           {phoneError ? (
             <span className="ef-field__error">{phoneError}</span>
           ) : (
-            <span className="ef-field__hint">Quem não está na lista entra como cliente novo, com este número.</span>
+            <span className="ef-field__hint">{t('assistant.newHint')}</span>
           )}
         </label>
       )}
       <div ref={scroller} className="fr-chat" aria-live="polite">
-        {lines.length === 0 && <p className="ef-card__text">Escreva como um cliente escreveria. Teste perguntas difíceis e veja como ela responde.</p>}
+        {lines.length === 0 && <p className="ef-card__text">{t('assistant.emptyChat')}</p>}
         {lines.map((line, index) => (
           <p key={index} className={`fr-chat__line fr-chat__line--${line.from}`}>
             {line.text}
           </p>
         ))}
-        {waiting && <p className="fr-chat__line fr-chat__line--sistema">Escrevendo...</p>}
+        {waiting && <p className="fr-chat__line fr-chat__line--sistema">{t('assistant.writing')}</p>}
       </div>
       <form className="fr-chat__form" onSubmit={send}>
-        <label className="fr-sr-only" htmlFor="assistant-test">Mensagem de teste</label>
+        <label className="fr-sr-only" htmlFor="assistant-test">{t('assistant.messageLabel')}</label>
         <input
           id="assistant-test"
           className="ef-input"
           maxLength={500}
           autoComplete="off"
-          placeholder="Escreva uma mensagem"
+          placeholder={t('assistant.messagePlaceholder')}
           value={text}
           onChange={(event) => setText(event.target.value)}
         />
-        <button type="submit" className="ef-button ef-button--primary" disabled={waiting || !text.trim()}>Enviar</button>
+        <button type="submit" className="ef-button ef-button--primary" disabled={waiting || !text.trim()}>{t('assistant.send')}</button>
       </form>
-      <p className="ef-field__hint">Nenhuma mensagem sai daqui, mas o que ela marcar, desmarcar ou cadastrar vale de verdade.</p>
+      <p className="ef-field__hint">{t('assistant.testHint')}</p>
     </div>
   )
 }

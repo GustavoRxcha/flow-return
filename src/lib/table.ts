@@ -8,9 +8,14 @@ export interface ParsedEndCustomer {
   service?: string
 }
 
+export type ImportIssueKind = 'noName' | 'phone' | 'date' | 'future'
+
 export interface ImportIssue {
   line: number
+  /** Motivo em português, para registros e testes. A tela traduz pelo `kind`. */
   reason: string
+  kind: ImportIssueKind
+  name?: string
 }
 
 export interface ImportResult {
@@ -20,8 +25,8 @@ export interface ImportResult {
 }
 
 const COLUMN_ALIASES = {
-  name: ['nome', 'cliente', 'nome do cliente', 'name'],
-  phone: ['telefone', 'celular', 'whatsapp', 'whats', 'fone', 'contato', 'phone', 'tel'],
+  name: ['nome', 'cliente', 'nome do cliente', 'name', 'nombre'],
+  phone: ['telefone', 'celular', 'whatsapp', 'whats', 'fone', 'contato', 'phone', 'tel', 'telefono'],
   lastVisit: [
     'ultima visita',
     'ultimo atendimento',
@@ -31,8 +36,9 @@ const COLUMN_ALIASES = {
     'data da visita',
     'data do atendimento',
     'last visit',
+    'fecha',
   ],
-  service: ['servico', 'procedimento', 'produto', 'atendimento', 'service'],
+  service: ['servico', 'procedimento', 'produto', 'atendimento', 'service', 'servicio'],
 } as const
 
 type Column = keyof typeof COLUMN_ALIASES
@@ -137,10 +143,10 @@ export function parseEndCustomerTable(text: string, today: string = todayIso()):
     const lastVisit = parseDate(row[indexes.lastVisit] ?? '')
     const service = indexes.service >= 0 ? row[indexes.service]?.trim() : undefined
 
-    if (!name) return void issues.push({ line, reason: 'sem nome' })
-    if (!phone) return void issues.push({ line, reason: `telefone inválido de ${name}` })
-    if (!lastVisit) return void issues.push({ line, reason: `data inválida de ${name}` })
-    if (lastVisit > today) return void issues.push({ line, reason: `data futura de ${name}` })
+    if (!name) return void issues.push({ line, kind: 'noName', reason: 'sem nome' })
+    if (!phone) return void issues.push({ line, kind: 'phone', name, reason: `telefone inválido de ${name}` })
+    if (!lastVisit) return void issues.push({ line, kind: 'date', name, reason: `data inválida de ${name}` })
+    if (lastVisit > today) return void issues.push({ line, kind: 'future', name, reason: `data futura de ${name}` })
 
     const existing = byPhone.get(phone)
     if (!existing || lastVisit > existing.lastVisit) {

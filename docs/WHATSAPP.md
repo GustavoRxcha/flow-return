@@ -61,4 +61,39 @@ Outro provedor precisa de duas peças em `server/whatsapp.ts`: ler o aviso dele 
 
 ## Trocar de IA
 
-A IA entra por um único ponto: `ChatModel`, em `server/ai.ts`. Uma IA paga é outra função com esse mesmo formato. Depois da troca, rode `npm run atendente:avaliar` e leia as conversas.
+A IA entra por um único ponto: `ChatModel`, em `server/ai.ts`.
+
+- **IA por API:** preencha `AI_API_KEY` no `.env`. `AI_PROVIDER` escolhe `gemini` (padrão) ou `openai`, e `AI_MODEL` troca o modelo. Outra IA no formato de chat da OpenAI entra por `AI_BASE_URL`.
+- **Sem chave:** usa o Ollama no próprio computador, como antes.
+- Ao iniciar, o registro mostra qual IA está ligada, sem a chave.
+
+Depois da troca, rode `npm run atendente:avaliar` e leia as conversas.
+
+## Avisos para o dono
+
+Em Atendente IA há dois números: o da atendente, que a API escuta e onde os clientes escrevem, e o do dono, que recebe um aviso quando alguém marca, desmarca ou remarca pelo WhatsApp.
+
+O aviso sai depois que o cliente recebe a resposta, assim:
+
+```
+Novo agendamento: Ana Souza. Pezinho, sexta-feira, 20/11, às 14:00, com Cleber.
+
+
+Ver no painel: https://...
+```
+
+A Meta só deixa a empresa escrever primeiro com um **modelo aprovado**. Sem modelo, o aviso só chega se o dono tiver falado com a linha da atendente nas últimas 24 horas. Para os avisos chegarem sempre:
+
+1. No WhatsApp Manager, crie um modelo da categoria **Utilidade**, idioma **Português (BR)**, com este corpo:
+   ```
+   {{1}}
+
+
+   Ver no painel: {{2}}
+   ```
+2. Quando for aprovado, coloque o nome dele em `WHATSAPP_TEMPLATE_AVISO` no `.env`.
+3. Coloque o endereço do painel em `PANEL_URL`.
+
+## Botões de confirmação
+
+Quando a atendente pede um sim (um horário proposto, ou desmarcar e remarcar), a mensagem sai com os botões **Confirmar** e **Outro horário**. O toque chega como o título do botão, e "Confirmar" vale como sim.

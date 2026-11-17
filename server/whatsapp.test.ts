@@ -4,10 +4,10 @@ import { AiUnavailable, type ChatModel } from './ai.ts'
 import { openDb, type Db } from './db.ts'
 import { loadState } from './repo.ts'
 import { seedIfEmpty, TEST_ACCOUNTS } from './seed.ts'
-import { createInbox, isSignedByMeta, linkLine, parseMetaWebhook, whatsappWebhook, type Inbox } from './whatsapp.ts'
+import { createInbox, isSignedByMeta, linkLine, ownerMessage, parseMetaWebhook, whatsappWebhook, type Inbox } from './whatsapp.ts'
 import { phoneFromWhatsApp } from '../src/lib/phone.ts'
 import { todayIso } from '../src/lib/dates.ts'
-import type { OutgoingMessage, SendChannel } from '../src/lib/channel.ts'
+import { CONFIRM_BUTTONS, metaBody, type OutgoingMessage, type SendChannel } from '../src/lib/channel.ts'
 
 const SECRET = 'segredo-de-teste'
 const LINE = 'linha-1'
@@ -35,6 +35,34 @@ beforeEach(() => {
   businessId = row.return_client_id
   linkLine(db, LINE, businessId)
   sent = []
+})
+
+describe('aviso para o dono', () => {
+  const event = { kind: 'marcado' as const, customerName: 'Ana', summary: 'Corte, sexta-feira, 20/11, às 10:00, com Cleber' }
+
+  it('com modelo da Meta, manda o modelo com a linha do aviso e o link do painel', () => {
+    const message = ownerMessage('5511987654321', event, { template: 'aviso_dono', panelUrl: 'https://painel.test' })
+    expect(message.template).toEqual({ name: 'aviso_dono', language: 'pt_BR', parameters: ['Novo agendamento: Ana. Corte, sexta-feira, 20/11, às 10:00, com Cleber.', 'https://painel.test'] })
+    expect(metaBody(message)).toMatchObject({ type: 'template', to: '5511987654321', template: { name: 'aviso_dono' } })
+  })
+
+  it('sem modelo, manda texto', () => {
+    expect(metaBody(ownerMessage('5511987654321', event, {}))).toMatchObject({ type: 'text' })
+  })
+})
+
+describe('botões de confirmação', () => {
+  it('toque no botão chega como o título dele', () => {
+    const tap = { id: 'm1', from: '5511977776666', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'confirmar', title: 'Confirmar' } } }
+    expect(parseMetaWebhook(payload([tap]))).toEqual([incoming('m1', 'Confirmar')])
+  })
+
+  it('mensagem com botões vira interativa; sem botões, texto simples', () => {
+    expect(metaBody({ phone: '5511977776666', text: 'Oi' })).toMatchObject({ type: 'text', text: { body: 'Oi' } })
+    const body = metaBody({ phone: '5511977776666', text: 'Posso confirmar?', buttons: CONFIRM_BUTTONS }) as { type: string; interactive: { action: { buttons: Array<{ reply: { id: string } }> } } }
+    expect(body.type).toBe('interactive')
+    expect(body.interactive.action.buttons.map(({ reply }) => reply.id)).toEqual(['confirmar', 'outro'])
+  })
 })
 
 describe('leitura do aviso da Meta', () => {

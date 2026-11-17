@@ -144,9 +144,9 @@ function cleanBusinessInfo(input: unknown): BusinessInfo | null {
   }
 }
 
-function cleanAssistant(input: unknown): AssistantSettings | 'telefone_invalido' | null {
+function cleanAssistant(input: unknown): AssistantSettings | 'telefone_invalido' | 'telefone_dono_invalido' | null {
   if (typeof input !== 'object' || input === null) return null
-  const { name, phone, openDays, opensAt, closesAt, reactivationEnabled } = input as Record<string, unknown>
+  const { name, phone, ownerPhone = '', openDays, opensAt, closesAt, reactivationEnabled } = input as Record<string, unknown>
   const info = cleanBusinessInfo((input as Record<string, unknown>).info)
   if (typeof name !== 'string' || name.trim().length > MAX_ASSISTANT_NAME) return null
   if (!info) return null
@@ -156,9 +156,13 @@ function cleanAssistant(input: unknown): AssistantSettings | 'telefone_invalido'
   if (!Array.isArray(openDays) || !openDays.length || !openDays.every((day) => isInt(day, 0, 6))) return null
   const normalized = phone.trim() ? normalizeBrPhone(phone) : null
   if (phone.trim() && !normalized) return 'telefone_invalido'
+  if (typeof ownerPhone !== 'string') return null
+  const owner = ownerPhone.trim() ? normalizeBrPhone(ownerPhone) : null
+  if (ownerPhone.trim() && !owner) return 'telefone_dono_invalido'
   return {
     name: name.trim(),
     phone: normalized,
+    ownerPhone: owner,
     openDays: [...new Set(openDays as number[])].sort(),
     opensAt,
     closesAt,
@@ -431,7 +435,7 @@ export function createApp(db: Db, options: { secureCookies?: boolean; chat?: Cha
   app.put('/workspace/assistant', async (c) => {
     const returnClientId = c.get('user').returnClientId!
     const input = cleanAssistant(await c.req.json().catch(() => null))
-    if (input === 'telefone_invalido') return c.json({ error: input }, 400)
+    if (input === 'telefone_invalido' || input === 'telefone_dono_invalido') return c.json({ error: input }, 400)
     if (!input) return c.json({ error: 'dados_invalidos' }, 400)
     saveAssistant(db, returnClientId, input)
     return c.json({ assistant: getAssistant(db, returnClientId) })

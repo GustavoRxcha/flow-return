@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import logo from '../../design-system/assets/Logos/flow-return-preto.svg'
 import { api, ApiError } from '../lib/api'
+import type { MessageKey } from '../lib/i18n'
+import { Logo } from './Header'
+import { usePreferences } from './Preferences'
+import { TopbarControls } from './TopbarControls'
 
-const MESSAGES: Record<string, string> = {
-  login_invalido: 'E-mail ou senha incorretos.',
-  muitas_tentativas: 'Muitas tentativas. Aguarde alguns minutos.',
+const MESSAGES: Record<string, MessageKey> = {
+  login_invalido: 'login.invalid',
+  muitas_tentativas: 'login.tooMany',
 }
 
 export function Login({ onSuccess }: { onSuccess: () => Promise<void> }) {
@@ -12,6 +15,7 @@ export function Login({ onSuccess }: { onSuccess: () => Promise<void> }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { t } = usePreferences()
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -22,7 +26,7 @@ export function Login({ onSuccess }: { onSuccess: () => Promise<void> }) {
       await onSuccess()
     } catch (failure) {
       const code = failure instanceof ApiError ? failure.code : ''
-      setError(MESSAGES[code] ?? 'Não foi possível entrar. Tente de novo.')
+      setError(t(MESSAGES[code] ?? 'login.failed'))
       setBusy(false)
     }
   }
@@ -30,12 +34,17 @@ export function Login({ onSuccess }: { onSuccess: () => Promise<void> }) {
   return (
     <main className="fr-page fr-page--solo">
       <nav className="ef-navbar" aria-label="Flow Return">
-        <img className="ef-navbar__logo" src={logo} alt="Flow Return" />
+        <div>
+          <Logo />
+        </div>
+        <div className="ef-row fr-topbar__group">
+          <TopbarControls />
+        </div>
       </nav>
       <form className="ef-stack" onSubmit={submit}>
-        <h1 className="display-md">Entrar.</h1>
+        <h1 className="display-md">{t('login.title')}</h1>
         <label className="ef-field">
-          <span className="ef-field__label">E-mail</span>
+          <span className="ef-field__label">{t('login.email')}</span>
           <input
             className="ef-input"
             type="email"
@@ -47,7 +56,7 @@ export function Login({ onSuccess }: { onSuccess: () => Promise<void> }) {
           />
         </label>
         <label className="ef-field">
-          <span className="ef-field__label">Senha</span>
+          <span className="ef-field__label">{t('login.password')}</span>
           <input
             className="ef-input"
             type="password"
@@ -60,7 +69,7 @@ export function Login({ onSuccess }: { onSuccess: () => Promise<void> }) {
           {error && <span className="ef-field__error" role="alert">{error}</span>}
         </label>
         <button type="submit" className="ef-button ef-button--primary ef-button--full" disabled={busy}>
-          {busy ? 'Entrando...' : 'Entrar'}
+          {busy ? t('login.busy') : t('login.submit')}
         </button>
       </form>
     </main>

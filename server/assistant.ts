@@ -1,20 +1,24 @@
-import { acceptedProposal, asksOwnAppointments, ASSISTANT_TOOLS, availabilityIn, availabilityReply, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, isYes, listServicesInLines, looksLikeName, lookupTimes, mentionsSomeoneElse, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, stopRequest, systemPrompt, wantsChange, timesIn, type AssistantContext, type Availability, type PendingChange, type ToolArgs } from '../src/lib/assistant.ts'
+import { acceptedProposal, asksOwnAppointments, assistantTools, availabilityIn, availabilityReply, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, isYes, listServicesInLines, looksLikeName, lookupTimes, mentionsSomeoneElse, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, stopRequest, systemPrompt, wantsChange, timesIn, type AssistantContext, type Availability, type PendingChange, type ToolArgs } from '../src/lib/assistant.ts'
 import { todayIso } from '../src/lib/dates.ts'
 import { formatCents } from '../src/lib/format.ts'
 import { DEFAULT_ASSISTANT, type AssistantSettings } from '../src/lib/types.ts'
-import { ollamaChat, type ChatMessage, type ChatModel } from './ai.ts'
+import { configuredChat, type ChatMessage, type ChatModel } from './ai.ts'
 import type { Db } from './db.ts'
 import { createAppointment, deleteOwnAppointment, getReturnClient, listAppointments, listOwnAppointments, listProfessionals, listServices, loadState, moveOwnAppointment } from './repo.ts'
 import { EMPTY_BUSINESS_INFO, type BusinessInfo } from '../src/lib/businessInfo.ts'
+import { ownerNoticeLine, type OwnerEvent } from '../src/lib/notices.ts'
 
 /** Conversa parada há mais tempo que isso recomeça do zero. */
 const CONVERSATION_TTL_MS = 6 * 60 * 60 * 1000
 /** Mensagens guardadas por conversa. */
 const MAX_HISTORY = 40
-/** Tentativas da IA em cada mensagem, somando consultas e correções. */
-const MAX_ROUNDS = 7
-/** A segunda tentativa guarda o contexto da conversa. Depois disso, o sistema responde e a pessoa não espera mais. */
-const MAX_RETRIES_WITH_ANSWER = 2
+/**
+ * Chamadas à IA em cada mensagem, somando consultas e a correção. Cada chamada é espera para a pessoa:
+ * o sistema já faz sozinho as consultas óbvias, então quase sempre basta uma.
+ */
+const MAX_ROUNDS = 4
+/** Resposta barrada ganha uma única chance de ser reescrita. Depois, o sistema responde com o que tem. */
+const MAX_REWRITES = 1
 /** Maior mensagem que a atendente lê. */
 export const MAX_ASSISTANT_TEXT = 500
 const MAX_CUSTOMER_NAME = 80
@@ -27,6 +31,7 @@ const STOP_FOR_OTHER_REPLY = 'Esse pedido vale só para quem escreve. Cada pesso
 interface AssistantRow {
   name: string
   phone: string | null
+  owner_phone: string | null
   open_days: string
   opens_at: string
   closes_at: string
@@ -42,6 +47,7 @@ export function getAssistant(db: Db, returnClientId: string): AssistantSettings 
   return {
     name: row.name,
     phone: row.phone,
+    ownerPhone: row.owner_phone ?? null,
     openDays: JSON.parse(row.open_days) as number[],
     opensAt: row.opens_at,
     closesAt: row.closes_at,
@@ -52,16 +58,17 @@ export function getAssistant(db: Db, returnClientId: string): AssistantSettings 
 
 export function saveAssistant(db: Db, returnClientId: string, input: AssistantSettings): void {
   db.prepare(
-    `INSERT INTO assistants (return_client_id, name, phone, open_days, opens_at, closes_at, reactivation_enabled, business_info)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO assistants (return_client_id, name, phone, owner_phone, open_days, opens_at, closes_at, reactivation_enabled, business_info)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (return_client_id) DO UPDATE SET
-       name = excluded.name, phone = excluded.phone, open_days = excluded.open_days, opens_at = excluded.opens_at,
+       name = excluded.name, phone = excluded.phone, owner_phone = excluded.owner_phone, open_days = excluded.open_days, opens_at = excluded.opens_at,
        closes_at = excluded.closes_at, reactivation_enabled = excluded.reactivation_enabled,
        business_info = excluded.business_info`,
   ).run(
     returnClientId,
     input.name,
     input.phone,
+    input.ownerPhone ?? null,
     JSON.stringify(input.openDays),
     input.opensAt,
     input.closesAt,
@@ -121,6 +128,10 @@ export interface TurnResult {
   booked: boolean
   /** O que ela consultou ou fez no sistema, para acompanhar no teste. */
   trail: string[]
+  /** A resposta pede um sim: no WhatsApp ela sai com botões de confirmar. */
+  confirm: boolean
+  /** O que mudou na agenda nesta mensagem. Cada um vira um aviso para o dono. */
+  events: OwnerEvent[]
 }
 
 /** Recebe uma mensagem e devolve a resposta. O WhatsApp vai chamar esta mesma função. */
@@ -129,7 +140,7 @@ export async function assistantTurn(
   returnClientId: string,
   contact: string,
   text: string,
-  { phone, now = new Date(), chat = ollamaChat }: TurnOptions = {},
+  { phone, now = new Date(), chat = configuredChat }: TurnOptions = {},
 ): Promise<TurnResult> {
   const state = loadState(db, returnClientId)
   const today = todayIso(now)
@@ -149,6 +160,7 @@ export async function assistantTurn(
 
   const history: ChatMessage[] = [...saved.messages, { role: 'user', content: text }]
   const trail: string[] = []
+  const events: OwnerEvent[] = []
   let booked = false
   let changed = false
   const firstName = (name: string) => name.trim().split(/\s+/)[0].toLowerCase()
@@ -179,6 +191,12 @@ export async function assistantTurn(
   const answeredName = !ctx.customerName && lastReply ? nameFromAnswer(lastReply.content, text) : null
   if (answeredName) saveCustomer(answeredName.slice(0, MAX_CUSTOMER_NAME))
 
+  /** Guarda o aviso para o dono. Quem envia é o WhatsApp; no teste da tela, aparece no registro. */
+  function notify(event: OwnerEvent): void {
+    events.push(event)
+    trail.push(ctx.assistant.ownerPhone ? `Aviso para o dono: ${ownerNoticeLine(event)}` : 'Sem número do dono: nenhum aviso enviado.')
+  }
+
   function refreshAgenda(): void {
     ctx.appointments = listAppointments(db, returnClientId)
     ctx.ownAppointments = phone ? listOwnAppointments(db, returnClientId, phone) : []
@@ -197,12 +215,14 @@ export async function assistantTurn(
     changed = true
     doneReply = doneText
     trail.push(`Feito: ${summary}.`)
+    notify({ kind: kind === 'desmarcar' ? 'desmarcado' : 'remarcado', customerName: ctx.customerName ?? '', summary: summary.replace(/^(Desmarcar|Remarcar) /, '') })
     return { ok: true, feito: summary }
   }
 
   const conversationDates = () => datesInConversation(contents('tool'), contents('user'), today)
 
   function runTool(name: string, args: ToolArgs): unknown {
+    ctx.customerMessages = contents('user')
     if (name === 'ver_horarios') {
       const result = lookupTimes(args, ctx, conversationDates())
       available = availabilityIn(result)
@@ -231,6 +251,7 @@ export async function assistantTurn(
       const { priceCents } = prepared.booking
       doneReply = `Pronto, marquei: ${prepared.summary}.${priceCents === null ? '' : ` Valor: ${formatCents(priceCents)}.`}`
       trail.push(`Marcou: ${prepared.summary}.`)
+      notify({ kind: 'marcado', customerName: ctx.customerName ?? '', summary: prepared.summary })
       return { ok: true, marcado: prepared.summary }
     }
     if (name === 'ver_meus_horarios') {
@@ -307,10 +328,11 @@ export async function assistantTurn(
 
   let reply = SAFE_REPLY
   let barred = 0
+  const tools = assistantTools(ctx)
   // O que muda a agenda sai escrito pelo sistema. A IA só responde se a pessoa perguntou mais alguma coisa.
   const settled = () => pending !== null || (doneReply !== null && !text.includes('?'))
   for (let round = 0; round < MAX_ROUNDS && !settled(); round++) {
-    const answer = await chat([{ role: 'system', content: systemPrompt(ctx) }, ...history], ASSISTANT_TOOLS)
+    const answer = await chat([{ role: 'system', content: systemPrompt(ctx) }, ...history], tools)
     if (answer.toolCalls.length) {
       history.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls })
       for (const call of answer.toolCalls) {
@@ -332,7 +354,8 @@ export async function assistantTurn(
     }
     trail.push(`Resposta barrada: ${problem}`)
     barred += 1
-    if (barred >= MAX_RETRIES_WITH_ANSWER && (available || doneReply)) break
+    // Com a agenda já consultada ou a ação já feita, o sistema tem a resposta certa: não faz a pessoa esperar outra volta.
+    if (barred > MAX_REWRITES || available || doneReply) break
     history.push({ role: 'system', content: `Sua resposta não foi enviada. ${problem} Escreva de novo.` })
   }
   if (reply === SAFE_REPLY && doneReply) reply = doneReply
@@ -351,5 +374,7 @@ export async function assistantTurn(
     changed: changed || saved.changed,
     pending,
   })
-  return { reply, booked, trail }
+  // Pedido de confirmação: a alteração preparada ou um horário proposto que o sim já marcaria.
+  const confirm = waiting !== null || (!booked && !stopped && acceptedProposal(reply, 'sim', ctx, contents('user')) !== null)
+  return { reply, booked, trail, confirm, events }
 }

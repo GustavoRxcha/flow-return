@@ -120,6 +120,7 @@ export function openDb(path: string): Db {
   if (addColumn(db, 'appointments', 'customer_phone', 'TEXT')) linkPastAppointmentsToPhones(db)
   addColumn(db, 'services', 'price_cents', 'INTEGER')
   addColumn(db, 'assistants', 'business_info', "TEXT NOT NULL DEFAULT '{}'")
+  addColumn(db, 'assistants', 'owner_phone', 'TEXT')
   dropColumn(db, 'assistants', 'instructions')
   giveEveryBusinessAProfessional(db)
   return db

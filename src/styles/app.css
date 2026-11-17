@@ -15,7 +15,8 @@ body { margin: 0; background: var(--surface); }
 .fr-filters .ef-field { min-width: 0; }
 .fr-filters .ef-input { display: block; min-width: 0; height: var(--control-md); }
 @media (max-width: 640px) {
-  .fr-filters { grid-template-columns: minmax(0, 1fr); }
+  .fr-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fr-filters > :first-child { grid-column: 1 / -1; }
 }
 .fr-break { overflow-wrap: anywhere; user-select: all; }
 
@@ -37,10 +38,11 @@ body { margin: 0; background: var(--surface); }
   border-bottom: 1px solid var(--line); background: var(--surface);
 }
 .fr-topbar__name { min-width: 0; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.fr-topbar__actions { justify-content: flex-end; flex-wrap: nowrap; }
+.fr-topbar__group { flex-wrap: nowrap; justify-content: flex-end; gap: var(--space-4); }
+/* No celular o topo fica em uma linha: logo à esquerda; idioma, tema e menu da conta à direita. */
 @media (max-width: 640px) {
-  .fr-topbar { grid-template-columns: auto auto; justify-content: space-between; gap: var(--space-4) var(--space-12); padding-inline: var(--space-16); }
-  .fr-topbar__name { grid-column: 1 / -1; grid-row: 2; }
+  .fr-topbar { display: flex; justify-content: space-between; padding: var(--space-8) var(--space-16); }
+  .fr-topbar__name { display: none; }
 }
 .fr-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: var(--space-16); }
 
@@ -94,3 +96,70 @@ body { margin: 0; background: var(--surface); }
 .fr-chat__line--cliente { align-self: flex-end; background: var(--surface-inverse); color: var(--on-inverse); }
 .fr-chat__line--sistema { align-self: center; padding: 0; color: var(--ink-muted); }
 .fr-chat__form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-8); }
+
+/* Idioma, tema e conta no topo. O menu fica plano, com borda, porque sombra só existe dentro do design system. */
+.fr-icon-button { padding: 0; width: var(--control-sm); }
+.fr-menu { position: relative; }
+.fr-lang__button { padding-inline: var(--space-12); gap: var(--space-4); }
+.fr-menu__list {
+  position: absolute; top: calc(100% + var(--space-4)); right: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: var(--space-4);
+  min-width: calc(var(--space-128) + var(--space-48)); padding: var(--space-8);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.fr-menu__option { justify-content: flex-start; padding-inline: var(--space-12); }
+.fr-menu__option[aria-checked="true"] { background: var(--surface-alt); }
+.fr-menu__name { flex: 1; text-align: left; }
+.fr-menu__title { margin: 0; padding: var(--space-4) var(--space-12) var(--space-8); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.fr-flag { display: block; flex: none; width: 20px; height: 14px; border-radius: 2px; outline: 1px solid var(--line); object-fit: cover; }
+
+/* Partes que só aparecem no celular ou só em telas largas. */
+.fr-only-narrow { display: none; }
+@media (max-width: 640px) {
+  .fr-only-wide { display: none; }
+  .fr-only-narrow { display: block; }
+  .fr-lang__code { display: none; }
+}
+
+/* Dois campos lado a lado, como data e hora, que nunca passam da largura da tela. */
+.fr-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-12); }
+.fr-pair .ef-field { min-width: 0; }
+/* O iPhone dá largura própria a campos de data e hora. Assim eles respeitam a coluna. */
+input.ef-input[type="date"], input.ef-input[type="time"] { min-width: 0; appearance: none; text-align: left; }
+input.ef-input::-webkit-date-and-time-value { text-align: left; }
+
+/* Clientes no celular: lista no lugar da tabela, cada linha abre o contato. */
+.fr-person { align-items: flex-start; }
+.fr-person .ef-check { margin-top: var(--space-4); }
+.fr-person__open {
+  display: flex; flex: 1; min-width: 0; align-items: flex-start; gap: var(--space-8);
+  padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.fr-person__next { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-4); }
+
+/* Celular: menos borda e espaço, mais conteúdo na tela. */
+@media (max-width: 640px) {
+  .fr-page { padding: var(--space-16) var(--space-16) var(--space-128); }
+  .fr-page--solo { padding-bottom: var(--space-48); }
+  .fr-page .ef-card { padding: var(--space-16); }
+  .fr-stack-lg { gap: var(--space-24); }
+  .fr-home { gap: var(--space-24); }
+  .fr-home__boxes { gap: var(--space-12); }
+  .fr-page .ef-card { gap: var(--space-8); }
+  .fr-page .ef-stack { gap: var(--space-12); }
+  /* Campos um pouco mais baixos, sem passar do mínimo de 44px para o toque. */
+  .fr-page .ef-input { min-height: calc(var(--control-md) - var(--space-4)); padding: var(--space-8) var(--space-12); }
+  .fr-filters .ef-input { height: calc(var(--control-md) - var(--space-4)); }
+  .fr-filters { gap: var(--space-8) var(--space-12); }
+  .fr-money { grid-template-columns: minmax(0, 1fr); gap: var(--space-8); }
+  .fr-page .fr-money > .ef-card { flex-direction: row-reverse; align-items: center; justify-content: space-between; padding: var(--space-12) var(--space-16); }
+}
+
+/*
+ * Nada passa da largura da tela. O Safari do iPhone deixa arrastar a página para o lado
+ * se qualquer peça sobrar, mesmo invisível. clip corta sem criar rolagem, e o topo continua fixo.
+ */
+body { overflow-x: clip; }
+.fr-page { overflow-x: clip; }
+select.ef-input { min-width: 0; max-width: 100%; text-overflow: ellipsis; }

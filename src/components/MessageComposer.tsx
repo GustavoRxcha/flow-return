@@ -5,6 +5,7 @@ import { messageFor } from '../lib/roster'
 import type { RosterRow } from '../lib/roster'
 import type { Settings } from '../lib/types'
 import { Dialog } from './Dialog'
+import { usePreferences } from './Preferences'
 import type { Dispatch } from './ReturnClientApp'
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function MessageComposer({ recipients, settings, today, demo, leftToday, dispatch, onClose }: Props) {
+  const { t, tp } = usePreferences()
   const presets = MESSAGE_PRESETS.filter((preset) => !preset.needsNextVisit || recipients.every((row) => row.next))
   const single = recipients.length === 1
   const fill = (template: string, row: RosterRow) => messageFor(row, settings, template, today)
@@ -27,7 +29,7 @@ export function MessageComposer({ recipients, settings, today, demo, leftToday, 
   const [position, setPosition] = useState<number | null>(null)
   const [sent, setSent] = useState(0)
   const queue = recipients.slice(0, leftToday)
-  const title = single ? 'Enviar lembrete' : `Mensagem para ${recipients.length} clientes`
+  const title = single ? t('composer.single') : t('composer.many', { n: recipients.length })
 
   if (position === null) {
     return (
@@ -36,39 +38,39 @@ export function MessageComposer({ recipients, settings, today, demo, leftToday, 
           <div className="ef-row">
             {presets.map((preset) => (
               <button
-                key={preset.label}
+                key={preset.key}
                 type="button"
                 className="ef-button ef-button--secondary ef-button--sm"
                 onClick={() => setText(start(preset.text))}
               >
-                {preset.label}
+                {t(`preset.${preset.key}`)}
               </button>
             ))}
           </div>
           <label className="ef-field">
-            <span className="ef-field__label">Mensagem</span>
+            <span className="ef-field__label">{t('composer.message')}</span>
             <textarea className="ef-input" rows={6} value={text} onChange={(event) => setText(event.target.value)} />
             {!single && (
               <span className="ef-field__hint">
-                Use {'{nome}'}, {'{negocio}'}, {'{tempo}'}, {'{servico}'} e {'{proximo}'}. Cada pessoa recebe os próprios dados.
+                {t('composer.hint')}
               </span>
             )}
           </label>
           {!single && text.trim() && (
             <p className="ef-alert">
-              <span className="ef-alert__title">Exemplo para {recipients[0].customer.name}:</span>{' '}
+              <span className="ef-alert__title">{t('composer.example', { name: recipients[0].customer.name })}</span>{' '}
               {fill(text, recipients[0])}
             </p>
           )}
           {queue.length < recipients.length && (
             <p className="ef-alert" role="status">
-              Hoje dá para enviar mais {leftToday}. Ir aos poucos protege o seu número.
+              {t('composer.limit', { n: leftToday })}
             </p>
           )}
         </div>
         <div className="ef-modal__actions">
           <button type="button" className="ef-button ef-button--secondary" onClick={() => onClose(false)}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -76,7 +78,7 @@ export function MessageComposer({ recipients, settings, today, demo, leftToday, 
             disabled={!text.trim() || queue.length === 0}
             onClick={() => setPosition(0)}
           >
-            Continuar
+            {t('composer.continue')}
           </button>
         </div>
       </Dialog>
@@ -87,14 +89,14 @@ export function MessageComposer({ recipients, settings, today, demo, leftToday, 
 
   if (!row) {
     return (
-      <Dialog title="Fila concluída." onClose={() => onClose(true)}>
+      <Dialog title={t('composer.finished')} onClose={() => onClose(true)}>
         <p className="ef-alert ef-alert--success" role="status">
-          <span className="ef-alert__title">Pronto.</span>{' '}
-          {sent === 1 ? '1 mensagem aberta no WhatsApp.' : `${sent} mensagens abertas no WhatsApp.`}
+          <span className="ef-alert__title">{t('common.done')}</span>{' '}
+          {tp('composer.opened', sent)}
         </p>
         <div className="ef-modal__actions">
           <button type="button" className="ef-button ef-button--brand" onClick={() => onClose(true)}>
-            Fechar
+            {t('common.close')}
           </button>
         </div>
       </Dialog>
@@ -117,16 +119,16 @@ export function MessageComposer({ recipients, settings, today, demo, leftToday, 
     <Dialog title={row.customer.name} onClose={() => onClose(sent > 0)}>
       <div className="ef-stack">
         <p className="ef-stat__label">
-          {position + 1} de {queue.length}
+          {t('composer.position', { n: position + 1, total: queue.length })}
         </p>
         <p className="ef-alert">{message}</p>
       </div>
       <div className="ef-modal__actions">
         <button type="button" className="ef-button ef-button--ghost" onClick={() => setPosition(position + 1)}>
-          Pular
+          {t('composer.skip')}
         </button>
         <button type="button" className="ef-button ef-button--primary" onClick={send}>
-          Abrir no WhatsApp
+          {t('composer.open')}
         </button>
       </div>
     </Dialog>

@@ -6,7 +6,7 @@
 import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { LOCAL_MODEL } from './ai.ts'
+import { configuredAi } from './ai.ts'
 import { assistantTurn, clearConversation, getAssistant, saveAssistant, type TurnResult } from './assistant.ts'
 import { openDb } from './db.ts'
 import { listOwnAppointments, listServices, loadState } from './repo.ts'
@@ -348,7 +348,7 @@ function brokenRule(before: { agenda: AgendaRow[]; people: ReturnType<typeof cus
   return null
 }
 
-console.log(`Modelo: ${LOCAL_MODEL}\n`)
+console.log(`Modelo: ${configuredAi().label}\n`)
 let passed = 0
 let blocked = 0
 let slowest = 0
@@ -372,7 +372,7 @@ for (const [index, scenario] of chosen.entries()) {
     // A IA fora do ar conta como falha desta conversa e não derruba as outras.
     const turn = await assistantTurn(db, id, contact, message, { phone, now }).catch((): TurnResult => {
       unavailable += 1
-      return { reply: NO_ANSWER, booked: false, trail: [] }
+      return { reply: NO_ANSWER, booked: false, trail: [], confirm: false, events: [] }
     })
     const ms = Date.now() - start
     slowest = Math.max(slowest, ms)

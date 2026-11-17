@@ -11,7 +11,8 @@
     "dev:web": "vite",
     "dev:api": "tsx watch --env-file-if-exists=.env server/index.ts",
     "whatsapp:tunel": "cloudflared tunnel --url http://localhost:5185",
-    "atendente:avaliar": "tsx server/assistant.eval.ts"
+    "atendente:avaliar": "tsx server/assistant.eval.ts",
+    "demo:build": "vite build --config demo/vite.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.6",
@@ -21,14 +22,18 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@noble/hashes": "^2.4.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^6.2.1",
     "concurrently": "^10.0.6",
+    "sql.js": "^1.16.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.6",
+    "vite-plugin-singlefile": "^2.3.4",
     "vitest": "^5.1.0"
   }
 }

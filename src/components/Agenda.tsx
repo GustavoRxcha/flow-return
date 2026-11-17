@@ -3,10 +3,12 @@ import { appointmentEnd, calendarLinks, findConflict, freeProfessionals, shiftMo
 import { api, ApiError } from '../lib/api'
 import { addDays } from '../lib/dates'
 import { centsInput, parseCents } from '../lib/format'
-import { APPOINTMENT_DURATIONS } from '../lib/types'
 import type { Appointment, AppointmentInput, Professional, Service } from '../lib/types'
 import { CalendarToolbar, DayView, MonthView } from './CalendarViews'
+import type { MessageKey, Params } from '../lib/i18n'
 import { ConfirmDialog } from './ConfirmDialog'
+import { usePreferences } from './Preferences'
+import { DurationOptions } from './Services'
 
 interface AgendaData {
   appointments: Appointment[]
@@ -39,6 +41,7 @@ export function Agenda({ customerNames, target, onFailure }: Props) {
   const [editing, setEditing] = useState<Editing>(null)
   const [formError, setFormError] = useState('')
   const [professionalFilter, setProfessionalFilter] = useState('')
+  const { t } = usePreferences()
 
   useEffect(() => {
     api<AgendaData>('/workspace/agenda').then(setData).catch(onFailure)
@@ -54,7 +57,7 @@ export function Agenda({ customerNames, target, onFailure }: Props) {
     }
   }
 
-  if (!data) return <p className="fr-status">Carregando...</p>
+  if (!data) return <p className="fr-status">{t('common.loading')}</p>
 
   const { appointments, professionals, services, today, calendarToken } = data
   const date = selected ?? today
@@ -74,7 +77,7 @@ export function Agenda({ customerNames, target, onFailure }: Props) {
       closeForm()
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === 'horario_ocupado') {
-        setFormError('Esse período acabou de ser ocupado. Escolha outra hora.')
+        setFormError(t('agenda.justTaken'))
       } else {
         onFailure(failure)
       }
@@ -126,13 +129,13 @@ export function Agenda({ customerNames, target, onFailure }: Props) {
 
       {several && (
         <label className="ef-field">
-          <span className="ef-field__label">Profissional</span>
+          <span className="ef-field__label">{t('agenda.professional')}</span>
           <select
             className="ef-input"
             value={professionalFilter}
             onChange={(event) => setProfessionalFilter(event.target.value)}
           >
-            <option value="">Todos</option>
+            <option value="">{t('common.all')}</option>
             {professionals.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -198,11 +201,10 @@ interface FormProps {
 }
 
 /** Explica por que o período não pode ser usado. */
-function busyMessage(conflict: Appointment, listed: number, free: number): string {
-  if (listed > 1 && free === 0) return 'Todos os profissionais estão ocupados nesse período. Escolha outra hora.'
-  const period = `das ${conflict.time} às ${appointmentEnd(conflict).time}`
-  if (listed === 1) return `Esse período está ocupado por ${conflict.customerName}, ${period}. Escolha outra hora.`
-  return `${conflict.professionalName} atende ${conflict.customerName} ${period}. Escolha outra hora ou outro profissional.`
+function busyMessage(conflict: Appointment, listed: number, free: number): { key: MessageKey; params?: Params } {
+  if (listed > 1 && free === 0) return { key: 'agenda.allBusy' }
+  const params = { name: conflict.customerName, from: conflict.time, to: appointmentEnd(conflict).time, professional: conflict.professionalName }
+  return { key: listed === 1 ? 'agenda.busyBy' : 'agenda.busyWith', params }
 }
 
 function AppointmentForm({
@@ -234,6 +236,7 @@ function AppointmentForm({
   const [removing, setRemoving] = useState(false)
   const [price, setPrice] = useState(centsInput(appointment?.priceCents ?? null))
   const [priceInvalid, setPriceInvalid] = useState(false)
+  const { t } = usePreferences()
 
   // Quem saiu da lista continua nos horários que já tinha.
   const options =
@@ -242,7 +245,8 @@ function AppointmentForm({
       : professionals
   const free = freeProfessionals(options, appointments, form, appointment?.id)
   const conflict = findConflict(appointments, form, appointment?.id)
-  const message = conflict ? busyMessage(conflict, options.length, free.length) : error
+  const busy = conflict ? busyMessage(conflict, options.length, free.length) : null
+  const message = busy ? t(busy.key, busy.params) : error
 
   const set =
     (key: 'professionalId' | 'customerName' | 'date' | 'time') => (event: { target: { value: string } }) =>
@@ -270,9 +274,9 @@ function AppointmentForm({
 
   return (
     <form className="ef-card" onSubmit={submit}>
-      <h2 className="title-md">{appointment ? 'Remarcar horário' : 'Novo horário'}</h2>
+      <h2 className="title-md">{appointment ? t('agenda.reschedule') : t('agenda.new')}</h2>
       <label className="ef-field">
-        <span className="ef-field__label">Cliente</span>
+        <span className="ef-field__label">{t('agenda.customer')}</span>
         <input
           className="ef-input"
           required
@@ -288,7 +292,7 @@ function AppointmentForm({
         </datalist>
       </label>
       <label className="ef-field">
-        <span className="ef-field__label">Serviço</span>
+        <span className="ef-field__label">{t('agenda.service')}</span>
         <input
           className="ef-input"
           required
@@ -303,33 +307,29 @@ function AppointmentForm({
           ))}
         </datalist>
       </label>
-      <div className="ef-stats">
+      <div className="fr-pair">
         <label className="ef-field">
-          <span className="ef-field__label">Data</span>
+          <span className="ef-field__label">{t('agenda.date')}</span>
           <input className="ef-input" type="date" required value={form.date} onChange={set('date')} />
         </label>
         <label className="ef-field">
-          <span className="ef-field__label">Hora</span>
+          <span className="ef-field__label">{t('agenda.time')}</span>
           <input className="ef-input" type="time" required value={form.time} onChange={set('time')} />
         </label>
       </div>
-      <div className="ef-stats">
+      <div className="fr-pair">
         <label className="ef-field">
-          <span className="ef-field__label">Duração</span>
+          <span className="ef-field__label">{t('services.duration')}</span>
           <select
             className="ef-input"
             value={form.durationMinutes}
             onChange={(event) => setForm({ ...form, durationMinutes: Number(event.target.value) })}
           >
-            {APPOINTMENT_DURATIONS.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {minutes} minutos
-              </option>
-            ))}
+            <DurationOptions />
           </select>
         </label>
         <label className="ef-field">
-          <span className="ef-field__label">Valor (R$)</span>
+          <span className="ef-field__label">{t('services.price')}</span>
           <input
             className="ef-input"
             inputMode="decimal"
@@ -341,18 +341,18 @@ function AppointmentForm({
               setPriceInvalid(false)
             }}
           />
-          {priceInvalid && <span className="ef-field__error">Escreva o valor assim: 45,00.</span>}
+          {priceInvalid && <span className="ef-field__error">{t('common.priceFormat')}</span>}
         </label>
       </div>
       {options.length > 1 && (
         <label className="ef-field">
-          <span className="ef-field__label">Profissional</span>
+          <span className="ef-field__label">{t('agenda.professional')}</span>
           <select className="ef-input" value={form.professionalId} onChange={set('professionalId')}>
             {options.map((item) => {
-              const busy = !free.some((person) => person.id === item.id)
+              const taken = !free.some((person) => person.id === item.id)
               return (
-                <option key={item.id} value={item.id} disabled={busy}>
-                  {busy ? `${item.name} (ocupado)` : item.name}
+                <option key={item.id} value={item.id} disabled={taken}>
+                  {taken ? t('agenda.busyOption', { name: item.name }) : item.name}
                 </option>
               )
             })}
@@ -361,28 +361,28 @@ function AppointmentForm({
       )}
       {message && (
         <p className="ef-alert ef-alert--danger" role="alert">
-          <span className="ef-alert__title">Horário ocupado.</span> {message}
+          <span className="ef-alert__title">{t('agenda.busyTitle')}</span> {message}
         </p>
       )}
       <div className="ef-row">
         <button type="submit" className="ef-button ef-button--brand" disabled={conflict !== null}>
-          Salvar
+          {t('common.save')}
         </button>
         <button type="button" className="ef-button ef-button--secondary" onClick={onClose}>
-          Voltar
+          {t('common.back')}
         </button>
         {appointment && (
           <button type="button" className="ef-button ef-button--danger" onClick={() => setRemoving(true)}>
-            Cancelar horário
+            {t('agenda.cancel')}
           </button>
         )}
       </div>
 
       {appointment && removing && (
         <ConfirmDialog
-          title="Cancelar este horário?"
-          text={`O horário de ${appointment.customerName} sai da agenda.`}
-          confirmLabel="Cancelar horário"
+          title={t('agenda.cancelTitle')}
+          text={t('agenda.cancelText', { name: appointment.customerName })}
+          confirmLabel={t('agenda.cancel')}
           onConfirm={() => void onRemove(appointment.id)}
           onClose={() => setRemoving(false)}
         />
@@ -400,6 +400,7 @@ interface LinkProps {
 function CalendarLink({ token, onLink, onUnlink }: LinkProps) {
   const [unpublished, setUnpublished] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
+  const { t } = usePreferences()
 
   async function open(target: 'ios' | 'google') {
     const code = await onLink()
@@ -415,34 +416,34 @@ function CalendarLink({ token, onLink, onUnlink }: LinkProps) {
 
   return (
     <div className="ef-card ef-card--panel">
-      <h2 className="title-md">Veja os horários na sua agenda.</h2>
-      <p className="ef-card__text">Os horários marcados aqui aparecem no seu iPhone ou no Google Agenda.</p>
+      <h2 className="title-md">{t('agenda.linkTitle')}</h2>
+      <p className="ef-card__text">{t('agenda.linkText')}</p>
       <div className="ef-row">
         <button type="button" className="ef-button ef-button--secondary" onClick={() => open('ios')}>
-          Vincular iOS
+          {t('agenda.linkIos')}
         </button>
         <button type="button" className="ef-button ef-button--secondary" onClick={() => open('google')}>
-          Vincular Google
+          {t('agenda.linkGoogle')}
         </button>
       </div>
-      <p className="ef-field__hint">Horários novos podem levar até um dia para aparecer no Google Agenda.</p>
+      <p className="ef-field__hint">{t('agenda.linkHint')}</p>
       {unpublished && (
         <p className="ef-alert" role="status">
-          O link já está pronto, mas só abre quando o sistema estiver publicado.
+          {t('agenda.unpublished')}
         </p>
       )}
       {token && (
         <div className="ef-row">
           <button type="button" className="ef-button ef-button--danger ef-button--sm" onClick={() => setUnlinking(true)}>
-            Desvincular
+            {t('agenda.unlink')}
           </button>
         </div>
       )}
       {unlinking && (
         <ConfirmDialog
-          title="Desvincular a agenda?"
-          text="O iPhone e o Google Agenda param de receber novos horários."
-          confirmLabel="Desvincular"
+          title={t('agenda.unlinkTitle')}
+          text={t('agenda.unlinkText')}
+          confirmLabel={t('agenda.unlink')}
           onConfirm={() => {
             setUnlinking(false)
             setUnpublished(false)
