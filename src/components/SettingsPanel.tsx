@@ -2,6 +2,7 @@ import { PLANS } from '../lib/plans'
 import type { AppState, PlanId } from '../lib/types'
 import { DEFAULT_TEMPLATE } from '../lib/types'
 import { ImportPanel } from './ImportPanel'
+import { usePreferences } from './Preferences'
 import { ProfessionalsPanel } from './ProfessionalsPanel'
 import type { Dispatch } from './ReturnClientApp'
 
@@ -15,21 +16,22 @@ interface Props {
 
 export function SettingsPanel({ state, plan, dispatch, onImport, onFailure }: Props) {
   const { settings } = state
+  const { t } = usePreferences()
   const change = (partial: Partial<AppState['settings']>) =>
     dispatch({ type: 'settings', settings: partial })
 
   return (
     <section className="fr-stack-lg">
-      <h1 className="title-lg">Ajustes</h1>
+      <h1 className="title-lg">{t('settings.title')}</h1>
 
       <div className="ef-card ef-card--panel">
         <div>
-          <p className="ef-stat__label">Seu plano</p>
-          <p className="ef-card__title">{PLANS[plan].name}</p>
+          <p className="ef-stat__label">{t('settings.plan')}</p>
+          <p className="ef-card__title">{t(`plan.${plan}`)}</p>
         </div>
         <ul className="ef-list">
           {PLANS[plan].features.map((feature) => (
-            <li key={feature.label} className={feature.available ? 'ef-item ef-item--done' : 'ef-item'}>
+            <li key={feature.key} className={feature.available ? 'ef-item ef-item--done' : 'ef-item'}>
               <span className="ef-item__mark">
                 {feature.available && (
                   <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
@@ -45,16 +47,16 @@ export function SettingsPanel({ state, plan, dispatch, onImport, onFailure }: Pr
                 )}
               </span>
               <span className="ef-item__body">
-                <span className="ef-item__title">{feature.label}</span>
+                <span className="ef-item__title">{t(`plan.feature.${feature.key}`)}</span>
               </span>
-              {!feature.available && <span className="ef-badge">Em breve</span>}
+              {!feature.available && <span className="ef-badge">{t('common.soon')}</span>}
             </li>
           ))}
         </ul>
       </div>
 
       <TextSetting
-        label="Nome do negócio"
+        label={t('settings.businessName')}
         value={settings.businessName}
         onSave={(businessName) => change({ businessName })}
       />
@@ -63,12 +65,12 @@ export function SettingsPanel({ state, plan, dispatch, onImport, onFailure }: Pr
 
       <div className="ef-stats">
         <NumberField
-          label="Sumido depois de (dias)"
+          label={t('settings.inactiveDays')}
           value={settings.inactiveDays}
           onChange={(inactiveDays) => change({ inactiveDays })}
         />
         <NumberField
-          label="Limite por dia"
+          label={t('settings.dailyLimit')}
           value={settings.dailyLimit}
           onChange={(dailyLimit) => change({ dailyLimit })}
         />
@@ -76,18 +78,18 @@ export function SettingsPanel({ state, plan, dispatch, onImport, onFailure }: Pr
 
       <TextSetting
         multiline
-        label="Mensagem padrão"
+        label={t('settings.template')}
         value={settings.template}
         onSave={(template) => change({ template })}
       />
-      <p className="ef-field__hint">Use {'{nome}'}, {'{negocio}'}, {'{tempo}'} e {'{servico}'}.</p>
+      <p className="ef-field__hint">{t('settings.templateHint')}</p>
       {settings.template !== DEFAULT_TEMPLATE && (
         <button type="button" className="ef-button ef-button--ghost ef-button--sm" onClick={() => change({ template: DEFAULT_TEMPLATE })}>
-          Voltar à mensagem original
+          {t('settings.resetTemplate')}
         </button>
       )}
 
-      <h2 className="title-md">Atualizar a lista</h2>
+      <h2 className="title-md">{t('settings.updateList')}</h2>
       <ImportPanel onImport={onImport} />
     </section>
   )

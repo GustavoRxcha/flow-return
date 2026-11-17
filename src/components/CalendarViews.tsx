@@ -2,8 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { appointmentEnd, dayHours, dayLabel, layoutDay, monthLabel, monthWeeks, weekDays } from '../lib/agenda'
 import type { Appointment } from '../lib/types'
-
-const WEEKDAY_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
+import { usePreferences } from './Preferences'
 
 interface ToolbarProps {
   date: string
@@ -16,27 +15,27 @@ interface ToolbarProps {
 }
 
 export function CalendarToolbar({ date, view, onPrevious, onNext, onToday, onView, onNew }: ToolbarProps) {
-  const unit = view === 'mes' ? 'Mês' : 'Dia'
+  const { locale, t } = usePreferences()
   return (
     <div className="ef-stack">
       <div className="fr-cal-bar">
-        <h1 className="title-lg" aria-live="polite">{monthLabel(date)}</h1>
+        <h1 className="title-lg" aria-live="polite">{monthLabel(date, locale)}</h1>
         <div className="ef-row">
           <button
             type="button"
             className="ef-button ef-button--ghost ef-button--sm fr-cal-arrow"
-            aria-label={`${unit} anterior`}
+            aria-label={t(view === 'mes' ? 'calendar.previousMonth' : 'calendar.previousDay')}
             onClick={onPrevious}
           >
             <ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />
           </button>
           <button type="button" className="ef-button ef-button--ghost ef-button--sm" onClick={onToday}>
-            Hoje
+            {t('common.today')}
           </button>
           <button
             type="button"
             className="ef-button ef-button--ghost ef-button--sm fr-cal-arrow"
-            aria-label={`Próximo ${unit.toLowerCase()}`}
+            aria-label={t(view === 'mes' ? 'calendar.nextMonth' : 'calendar.nextDay')}
             onClick={onNext}
           >
             <ChevronRight size={20} strokeWidth={2} aria-hidden="true" />
@@ -44,16 +43,16 @@ export function CalendarToolbar({ date, view, onPrevious, onNext, onToday, onVie
         </div>
       </div>
       <div className="fr-cal-bar">
-        <div className="ef-tabs" role="tablist" aria-label="Visão">
+        <div className="ef-tabs" role="tablist" aria-label={t('calendar.view')}>
           <button type="button" className="ef-tab" role="tab" aria-selected={view === 'mes'} onClick={() => onView('mes')}>
-            Mês
+            {t('calendar.month')}
           </button>
           <button type="button" className="ef-tab" role="tab" aria-selected={view === 'dia'} onClick={() => onView('dia')}>
-            Dia
+            {t('calendar.day')}
           </button>
         </div>
         <button type="button" className="ef-button ef-button--primary ef-button--sm" onClick={onNew}>
-          Novo horário
+          {t('agenda.new')}
         </button>
       </div>
     </div>
@@ -61,9 +60,10 @@ export function CalendarToolbar({ date, view, onPrevious, onNext, onToday, onVie
 }
 
 function WeekdayNames() {
+  const { tl } = usePreferences()
   return (
     <div className="fr-cal-week fr-cal-names caption" aria-hidden="true">
-      {WEEKDAY_LETTERS.map((letter, index) => (
+      {tl('calendar.letters').map((letter, index) => (
         <span key={index}>{letter}</span>
       ))}
     </div>
@@ -80,12 +80,13 @@ interface DayCellProps {
 
 function DayCell({ date, selected, today, count, onClick }: DayCellProps) {
   const number = Number(date.slice(8))
-  const summary = count === 0 ? 'sem horários' : count === 1 ? '1 horário' : `${count} horários`
+  const { locale, t, tp } = usePreferences()
+  const summary = count === 0 ? t('calendar.noSlots') : tp('finance.slots', count)
   return (
     <button
       type="button"
       className="fr-cal-day"
-      aria-label={`${dayLabel(date, today)}, ${summary}`}
+      aria-label={`${dayLabel(date, today, locale)}, ${summary}`}
       aria-pressed={selected}
       aria-current={date === today ? 'date' : undefined}
       onClick={onClick}
@@ -115,6 +116,7 @@ function EventButton({
   placement?: { start: number; length: number; column: number; columns: number }
   onOpen: (item: Appointment) => void
 }) {
+  const { t } = usePreferences()
   const short = placement !== undefined && placement.length < 0.75
   const details = showProfessional ? `${item.service} · ${item.professionalName}` : item.service
   return (
@@ -127,7 +129,7 @@ function EventButton({
         '--fr-column': placement?.column,
         '--fr-columns': placement?.columns,
       } as CSSProperties}
-      aria-label={`${item.time}, ${item.customerName}, ${details}. Remarcar.`}
+      aria-label={t('calendar.event', { time: item.time, name: item.customerName, details })}
       onClick={() => onOpen(item)}
     >
       {short ? (
@@ -138,7 +140,7 @@ function EventButton({
         <>
           <span className="label">{item.customerName}</span>
           <span className="caption">
-            {item.time} às {appointmentEnd(item).time} · {details}
+            {t('common.timeRange', { from: item.time, to: appointmentEnd(item).time })} · {details}
           </span>
         </>
       )}
@@ -194,6 +196,7 @@ interface MonthProps {
 
 export function MonthView({ date, today, appointments, showProfessional, onSelect, onOpenDay, onOpen }: MonthProps) {
   const items = appointments.filter((item) => item.date === date)
+  const { locale, t } = usePreferences()
 
   return (
     <>
@@ -206,13 +209,13 @@ export function MonthView({ date, today, appointments, showProfessional, onSelec
 
       <div className="ef-stack">
         <div className="fr-cal-bar">
-          <h2 className="title-md">{dayLabel(date, today)}</h2>
+          <h2 className="title-md">{dayLabel(date, today, locale)}</h2>
           <button type="button" className="ef-button ef-button--ghost ef-button--sm" onClick={onOpenDay}>
-            Abrir dia
+            {t('calendar.openDay')}
           </button>
         </div>
         {items.length === 0 ? (
-          <p className="ef-card__text">Nenhum horário neste dia.</p>
+          <p className="ef-card__text">{t('calendar.noneDay')}</p>
         ) : (
           items.map((item) => (
             <EventButton
@@ -246,6 +249,7 @@ interface DayProps {
 
 export function DayView({ date, today, appointments, showProfessional, onSelect, onOpen, onNewAt }: DayProps) {
   const [hourNow, setHourNow] = useState(currentHour)
+  const { locale, t } = usePreferences()
 
   useEffect(() => {
     const timer = setInterval(() => setHourNow(currentHour()), 60_000)
@@ -277,7 +281,7 @@ export function DayView({ date, today, appointments, showProfessional, onSelect,
       </div>
 
       <div className="ef-stack">
-        <h2 className="title-md">{dayLabel(date, today)}</h2>
+        <h2 className="title-md">{dayLabel(date, today, locale)}</h2>
         <div className="fr-cal-timeline">
           {hours.map((hour) => {
             const label = `${String(hour).padStart(2, '0')}:00`
@@ -286,7 +290,7 @@ export function DayView({ date, today, appointments, showProfessional, onSelect,
                 key={hour}
                 type="button"
                 className="fr-cal-hour"
-                aria-label={`Marcar horário às ${label}`}
+                aria-label={t('calendar.bookAt', { time: label })}
                 onClick={() => onNewAt(label)}
               >
                 <span className="caption">{label}</span>

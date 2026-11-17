@@ -9,6 +9,7 @@ import { EndCustomers } from './EndCustomers'
 import { Header } from './Header'
 import { Home } from './Home'
 import { ImportPanel } from './ImportPanel'
+import { usePreferences } from './Preferences'
 import { Services } from './Services'
 import { SettingsPanel } from './SettingsPanel'
 
@@ -42,10 +43,11 @@ export function ReturnClientApp({ returnClient, onLogout }: Props) {
   const [error, setError] = useState('')
   const [tab, setTab] = useState<Tab>('inicio')
   const [agendaTarget, setAgendaTarget] = useState<AgendaTarget | null>(null)
+  const { t } = usePreferences()
 
   const handleFailure = useCallback((failure: unknown) => {
     if (failure instanceof ApiError && failure.code === 'conta_pausada') setPaused(true)
-    else setError('Não foi possível salvar. Tente de novo.')
+    else setError('saveFailed')
   }, [])
 
   useEffect(() => {
@@ -89,14 +91,14 @@ export function ReturnClientApp({ returnClient, onLogout }: Props) {
       <>
         <Header subtitle={returnClient.name} onLogout={onLogout} />
         <main className="fr-page fr-page--solo">
-        <Empty title="Conta pausada." text="Fale com a Flow Return para reativar o acesso." />
+        <Empty title={t('client.pausedTitle')} text={t('client.pausedText')} />
         </main>
       </>
     )
   }
 
   if (!workspace || !metrics) {
-    return <p className="fr-status">{error || 'Carregando...'}</p>
+    return <p className="fr-status">{error ? t('common.saveFailed') : t('common.loading')}</p>
   }
 
   const { state, today } = workspace
@@ -109,11 +111,11 @@ export function ReturnClientApp({ returnClient, onLogout }: Props) {
         <main className="fr-page fr-page--solo">
         <div className="fr-stack-lg">
           <div className="ef-stack">
-            <h1 className="display-md">Traga de volta quem sumiu.</h1>
-            <p className="ef-card__text">Envie sua lista e veja quem está há mais tempo sem aparecer.</p>
+            <h1 className="display-md">{t('client.firstTitle')}</h1>
+            <p className="ef-card__text">{t('client.firstText')}</p>
           </div>
           <ImportPanel onImport={importList} />
-          {error && <p className="ef-alert ef-alert--danger" role="alert">{error}</p>}
+          {error && <p className="ef-alert ef-alert--danger" role="alert">{t('common.saveFailed')}</p>}
         </div>
         </main>
       </>
@@ -121,11 +123,11 @@ export function ReturnClientApp({ returnClient, onLogout }: Props) {
   }
 
   const tabs: Array<{ id: Tab; label: string }> = [
-    { id: 'inicio', label: 'Início' },
-    { id: 'clientes', label: 'Clientes' },
-    { id: 'agenda', label: 'Agenda' },
-    { id: 'servicos', label: 'Serviços' },
-    { id: 'atendente', label: 'Atendente IA' },
+    { id: 'inicio', label: t('nav.home') },
+    { id: 'clientes', label: t('nav.customers') },
+    { id: 'agenda', label: t('nav.agenda') },
+    { id: 'servicos', label: t('nav.services') },
+    { id: 'atendente', label: t('nav.assistant') },
   ]
 
   return (
@@ -133,8 +135,8 @@ export function ReturnClientApp({ returnClient, onLogout }: Props) {
       <Header subtitle={subtitle} onLogout={onLogout} onSettings={() => setTab('ajustes')} />
       <main className={PAGE_CLASS[tab]}>
         <div className="fr-stack-lg">
-          {state.demo && <p className="ef-alert">Conta de teste. O envio não abre o WhatsApp.</p>}
-          {error && <p className="ef-alert ef-alert--danger" role="alert">{error}</p>}
+          {state.demo && <p className="ef-alert">{t('client.demo')}</p>}
+          {error && <p className="ef-alert ef-alert--danger" role="alert">{t('common.saveFailed')}</p>}
         {tab === 'inicio' && (
           <Home
             metrics={metrics}
@@ -177,7 +179,7 @@ export function ReturnClientApp({ returnClient, onLogout }: Props) {
         )}
       </div>
       </main>
-      <nav className="ef-bottomnav fr-nav" aria-label="Seções">
+      <nav className="ef-bottomnav fr-nav" aria-label={t('client.sections')}>
         {tabs.map((item) => (
           <button
             key={item.id}

@@ -3,6 +3,7 @@ import { activeChannel } from '../lib/channel'
 import { parseMoney } from '../lib/format'
 import type { RosterRow } from '../lib/roster'
 import { Dialog } from './Dialog'
+import { usePreferences } from './Preferences'
 import type { Dispatch } from './ReturnClientApp'
 
 interface Props {
@@ -17,6 +18,7 @@ export function ContactDialog({ row, demo, dispatch, onReminder, onClose }: Prop
   const { customer } = row
   const [step, setStep] = useState<'menu' | 'voltou' | 'parar'>('menu')
   const [value, setValue] = useState('')
+  const { t } = usePreferences()
 
   function act(action: Record<string, unknown> & { type: string }) {
     dispatch({ ...action, phone: customer.phone })
@@ -39,13 +41,13 @@ export function ContactDialog({ row, demo, dispatch, onReminder, onClose }: Prop
   if (customer.status === 'nao_chamar') {
     return (
       <Dialog title={customer.name} onClose={onClose}>
-        <p className="ef-modal__text">Pediu para não receber mensagens.</p>
+        <p className="ef-modal__text">{t('contact.optedOut')}</p>
         <div className="ef-modal__actions">
           <button type="button" className="ef-button ef-button--secondary" onClick={onClose}>
-            Fechar
+            {t('common.close')}
           </button>
           <button type="button" className="ef-button ef-button--primary" onClick={() => act({ type: 'backToQueue' })}>
-            Voltar a chamar
+            {t('contact.callAgain')}
           </button>
         </div>
       </Dialog>
@@ -57,7 +59,7 @@ export function ContactDialog({ row, demo, dispatch, onReminder, onClose }: Prop
       <Dialog title={customer.name} onClose={onClose}>
         <form className="ef-stack" onSubmit={submitReturned}>
           <label className="ef-field">
-            <span className="ef-field__label">Quanto gastou? (opcional)</span>
+            <span className="ef-field__label">{t('contact.spent')}</span>
             <input
               className="ef-input"
               autoFocus
@@ -69,10 +71,10 @@ export function ContactDialog({ row, demo, dispatch, onReminder, onClose }: Prop
           </label>
           <div className="ef-modal__actions">
             <button type="button" className="ef-button ef-button--secondary" onClick={() => setStep('menu')}>
-              Voltar
+              {t('common.back')}
             </button>
             <button type="submit" className="ef-button ef-button--brand">
-              Salvar
+              {t('common.save')}
             </button>
           </div>
         </form>
@@ -82,14 +84,14 @@ export function ContactDialog({ row, demo, dispatch, onReminder, onClose }: Prop
 
   if (step === 'parar') {
     return (
-      <Dialog title="Não chamar mais?" onClose={onClose}>
-        <p className="ef-modal__text">{customer.name} não recebe mais mensagens.</p>
+      <Dialog title={t('contact.stopTitle')} onClose={onClose}>
+        <p className="ef-modal__text">{t('contact.stopText', { name: customer.name })}</p>
         <div className="ef-modal__actions">
           <button type="button" className="ef-button ef-button--secondary" onClick={() => setStep('menu')}>
-            Voltar
+            {t('common.back')}
           </button>
           <button type="button" className="ef-button ef-button--danger" onClick={() => act({ type: 'block' })}>
-            Não chamar mais
+            {t('contact.stop')}
           </button>
         </div>
       </Dialog>
@@ -100,21 +102,21 @@ export function ContactDialog({ row, demo, dispatch, onReminder, onClose }: Prop
     <Dialog title={customer.name} onClose={onClose}>
       <div className="ef-stack">
         <button type="button" className="ef-button ef-button--secondary ef-button--full" onClick={openWhatsApp}>
-          Abrir WhatsApp
+          {t('contact.openWhatsApp')}
         </button>
         <button type="button" className="ef-button ef-button--primary ef-button--full" onClick={onReminder}>
-          Enviar lembrete
+          {t('contact.reminder')}
         </button>
         {customer.status !== 'voltou' && (
           <button type="button" className="ef-button ef-button--secondary ef-button--full" onClick={() => setStep('voltou')}>
-            Registrar que voltou
+            {t('contact.returned')}
           </button>
         )}
         <button type="button" className="ef-button ef-button--danger ef-button--full" onClick={() => setStep('parar')}>
-          Não chamar mais
+          {t('contact.stop')}
         </button>
         <button type="button" className="ef-button ef-button--ghost ef-button--full" onClick={onClose}>
-          Fechar
+          {t('common.close')}
         </button>
       </div>
     </Dialog>

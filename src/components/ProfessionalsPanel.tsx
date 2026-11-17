@@ -1,12 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../lib/api'
 import type { Professional } from '../lib/types'
+import type { MessageKey } from '../lib/i18n'
 import { ConfirmDialog } from './ConfirmDialog'
+import { usePreferences } from './Preferences'
 
-const MESSAGES: Record<string, string> = {
-  nome_em_uso: 'Já existe um profissional com esse nome. Use outro nome.',
-  tem_horarios: 'Esse profissional tem horários marcados. Remarque ou cancele esses horários e tente de novo.',
-  ultimo_profissional: 'Seu negócio precisa de pelo menos um profissional.',
+const MESSAGES: Record<string, MessageKey> = {
+  nome_em_uso: 'pros.nameInUse',
+  tem_horarios: 'pros.hasAppointments',
+  ultimo_profissional: 'pros.lastOne',
 }
 
 interface Reply {
@@ -19,6 +21,7 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
   const [error, setError] = useState('')
   const [removing, setRemoving] = useState<Professional | null>(null)
   const [version, setVersion] = useState(0)
+  const { t } = usePreferences()
 
   useEffect(() => {
     api<Reply>('/workspace/professionals')
@@ -34,7 +37,7 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
       return true
     } catch (failure) {
       const message = failure instanceof ApiError ? MESSAGES[failure.code] : undefined
-      if (message) setError(message)
+      if (message) setError(t(message))
       else onFailure(failure)
       return false
     }
@@ -58,8 +61,8 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
   return (
     <div className="ef-card ef-card--panel">
       <div>
-        <h2 className="title-md">Profissionais</h2>
-        <p className="ef-card__text">Cada profissional tem a própria agenda. Com dois, você marca duas pessoas no mesmo horário.</p>
+        <h2 className="title-md">{t('pros.title')}</h2>
+        <p className="ef-card__text">{t('pros.text')}</p>
       </div>
 
       <ul className="ef-list">
@@ -68,7 +71,7 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
             <input
               key={`${item.name}-${version}`}
               className="ef-input"
-              aria-label={`Nome de ${item.name}`}
+              aria-label={t('pros.nameOf', { name: item.name })}
               maxLength={120}
               defaultValue={item.name}
               onBlur={(event) => void rename(item, event.target.value)}
@@ -79,7 +82,7 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
                 className="ef-button ef-button--danger ef-button--sm"
                 onClick={() => setRemoving(item)}
               >
-                Remover
+                {t('common.remove')}
               </button>
             )}
           </li>
@@ -88,7 +91,7 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
 
       <form className="fr-professional" onSubmit={add}>
         <label className="ef-field">
-          <span className="ef-field__label">Novo profissional</span>
+          <span className="ef-field__label">{t('pros.new')}</span>
           <input
             className="ef-input"
             required
@@ -98,7 +101,7 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
           />
         </label>
         <button type="submit" className="ef-button ef-button--primary ef-button--sm">
-          Adicionar
+          {t('common.add')}
         </button>
       </form>
 
@@ -110,9 +113,9 @@ export function ProfessionalsPanel({ onFailure }: { onFailure: (failure: unknown
 
       {removing && (
         <ConfirmDialog
-          title={`Remover ${removing.name}?`}
-          text="Esse nome sai da lista. Os horários que já passaram continuam na agenda."
-          confirmLabel="Remover"
+          title={t('pros.removeTitle', { name: removing.name })}
+          text={t('pros.removeText')}
+          confirmLabel={t('common.remove')}
           onConfirm={() => {
             setRemoving(null)
             void send(`/workspace/professionals/${removing.id}`, 'DELETE')

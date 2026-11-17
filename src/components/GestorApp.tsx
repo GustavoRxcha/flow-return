@@ -5,6 +5,7 @@ import { PLANS } from '../lib/plans'
 import type { AccountStatus, PlanId, ReturnClient, SessionUser } from '../lib/types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Header } from './Header'
+import { usePreferences } from './Preferences'
 import { Stat } from './Stat'
 
 interface ClientSummary extends ReturnClient {
@@ -31,23 +32,24 @@ interface Overview {
   }
 }
 
-function formatLogin(iso: string | null): string {
-  if (!iso) return 'Nunca entrou'
-  const date = new Date(iso)
-  return `Último acesso em ${date.toLocaleDateString('pt-BR')}`
+function LastLogin({ iso }: { iso: string | null }) {
+  const { t, intl } = usePreferences()
+  if (!iso) return <>{t('gestor.neverLogged')}</>
+  return <>{t('gestor.lastLogin', { date: new Date(iso).toLocaleDateString(intl) })}</>
 }
 
 export function GestorApp({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+  const { t } = usePreferences()
 
   const load = useCallback(async () => {
     try {
       setOverview(await api<Overview>('/admin/overview'))
       setError('')
     } catch {
-      setError('Não foi possível carregar os dados.')
+      setError('loadFailed')
     }
   }, [])
 
@@ -57,29 +59,29 @@ export function GestorApp({ user, onLogout }: { user: SessionUser; onLogout: () 
 
   return (
     <>
-      <Header subtitle={`Gestor · ${user.name}`} onLogout={onLogout} />
+      <Header subtitle={t('gestor.subtitle', { name: user.name })} onLogout={onLogout} />
       <main className="fr-page fr-page--wide fr-page--solo">
-      {error && <p className="ef-alert ef-alert--danger" role="alert">{error}</p>}
+      {error && <p className="ef-alert ef-alert--danger" role="alert">{t('gestor.loadFailed')}</p>}
       {!overview ? (
-        !error && <p className="fr-status">Carregando...</p>
+        !error && <p className="fr-status">{t('common.loading')}</p>
       ) : (
         <section className="fr-stack-lg">
           <div>
-            <p className="ef-stat__label">Dinheiro que voltou para os negócios</p>
+            <p className="ef-stat__label">{t('gestor.moneyBack')}</p>
             <p className="ef-stat__value ef-stat__value--hero">{formatMoney(overview.totals.recoveredValue)}</p>
           </div>
 
           <div className="ef-stats">
-            <Stat value={overview.totals.returnClients} label="negócios" />
-            <Stat value={overview.totals.active} label="ativos" />
-            <Stat value={overview.totals.endCustomers} label="clientes" />
-            <Stat value={overview.totals.returned} label="voltaram" />
+            <Stat value={overview.totals.returnClients} label={t('gestor.statBusinesses')} />
+            <Stat value={overview.totals.active} label={t('gestor.statActive')} />
+            <Stat value={overview.totals.endCustomers} label={t('gestor.statCustomers')} />
+            <Stat value={overview.totals.returned} label={t('gestor.statReturned')} />
           </div>
 
           <div className="fr-spread">
-            <h1 className="title-lg">Negócios</h1>
+            <h1 className="title-lg">{t('gestor.businesses')}</h1>
             <button type="button" className="ef-button ef-button--secondary ef-button--sm" onClick={() => setCreating(!creating)}>
-              {creating ? 'Fechar' : 'Novo'}
+              {creating ? t('common.close') : t('gestor.new')}
             </button>
           </div>
 
@@ -100,6 +102,7 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
   const [confirming, setConfirming] = useState(false)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const { t, tp } = usePreferences()
 
   async function patch(changes: Partial<{ plan: PlanId; status: AccountStatus; inactiveDays: number; dailyLimit: number }>) {
     setError('')
@@ -107,7 +110,7 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
       await api(`/admin/clients/${client.id}`, { method: 'PATCH', body: changes })
       await onChanged()
     } catch {
-      setError('Não foi possível salvar.')
+      setError(t('gestor.saveFailed'))
     }
   }
 
@@ -120,7 +123,7 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
       })
       setPassword(result.temporaryPassword)
     } catch {
-      setError('Não foi possível criar a senha.')
+      setError(t('gestor.passwordFailed'))
     }
   }
 
@@ -132,36 +135,36 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
         <div>
           <h2 className="title-md">{client.name}</h2>
           <p className="ef-item__meta">
-            {client.segment} · Plano {PLANS[client.plan].name}
-            {client.demo ? ' · Teste' : ''}
+            {client.segment} · {t('gestor.planOf', { name: t(`plan.${client.plan}`) })}
+            {client.demo ? ` · ${t('gestor.demo')}` : ''}
           </p>
         </div>
-        <span className={paused ? 'ef-badge ef-badge--inverse' : 'ef-badge'}>{paused ? 'Pausado' : 'Ativo'}</span>
+        <span className={paused ? 'ef-badge ef-badge--inverse' : 'ef-badge'}>{paused ? t('gestor.paused') : t('gestor.active')}</span>
       </div>
 
       <div className="fr-figures">
-        <Figure value={client.endCustomers} label="clientes" />
-        <Figure value={client.contacted} label="chamados" />
-        <Figure value={client.returned} label={client.returned === 1 ? 'voltou' : 'voltaram'} />
-        <Figure value={formatMoney(client.recoveredValue)} label="recuperados" />
+        <Figure value={client.endCustomers} label={t('gestor.figureCustomers')} />
+        <Figure value={client.contacted} label={t('gestor.figureCalled')} />
+        <Figure value={client.returned} label={tp('gestor.figureReturned', client.returned)} />
+        <Figure value={formatMoney(client.recoveredValue)} label={t('gestor.figureRecovered')} />
       </div>
 
       <p className="ef-item__meta">
-        {client.ownerName} · {client.ownerEmail} · {formatLogin(client.lastLoginAt)}
+        {client.ownerName} · {client.ownerEmail} · <LastLogin iso={client.lastLoginAt} />
       </p>
 
       <button type="button" className="ef-button ef-button--ghost ef-button--sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? 'Fechar gestão' : 'Gerenciar'}
+        {open ? t('gestor.closeManage') : t('gestor.manage')}
       </button>
 
       {open && (
         <div className="ef-stack">
           <label className="ef-field">
-            <span className="ef-field__label">Plano</span>
+            <span className="ef-field__label">{t('gestor.plan')}</span>
             <select className="ef-input" value={client.plan} onChange={(event) => patch({ plan: event.target.value as PlanId })}>
               {Object.values(PLANS).map((plan) => (
                 <option key={plan.id} value={plan.id}>
-                  {plan.name} · R$ {plan.monthlyPrice}/mês
+                  {t('plan.perMonth', { name: t(`plan.${plan.id}`), price: plan.monthlyPrice })}
                 </option>
               ))}
             </select>
@@ -169,12 +172,12 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
 
           <div className="ef-stats">
             <SmallNumber
-              label="Sumido depois de (dias)"
+              label={t('settings.inactiveDays')}
               value={client.inactiveDays}
               onSave={(inactiveDays) => patch({ inactiveDays })}
             />
             <SmallNumber
-              label="Limite por dia"
+              label={t('settings.dailyLimit')}
               value={client.dailyLimit}
               onSave={(dailyLimit) => patch({ dailyLimit })}
             />
@@ -186,14 +189,14 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
               className="ef-button ef-button--secondary ef-button--sm"
               onClick={() => patch({ status: paused ? 'ativo' : 'pausado' })}
             >
-              {paused ? 'Reativar conta' : 'Pausar conta'}
+              {paused ? t('gestor.reactivate') : t('gestor.pause')}
             </button>
             <button
               type="button"
               className="ef-button ef-button--secondary ef-button--sm"
               onClick={() => setConfirming(true)}
             >
-              Nova senha
+              {t('gestor.newPassword')}
             </button>
           </div>
 
@@ -204,9 +207,9 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
 
       {confirming && (
         <ConfirmDialog
-          title="Criar nova senha?"
-          text={`A senha atual de ${client.name} deixa de funcionar.`}
-          confirmLabel="Criar nova senha"
+          title={t('gestor.passwordTitle')}
+          text={t('gestor.passwordText', { name: client.name })}
+          confirmLabel={t('gestor.passwordConfirm')}
           onConfirm={resetPassword}
           onClose={() => setConfirming(false)}
         />
@@ -244,11 +247,12 @@ function SmallNumber({ label, value, onSave }: { label: string; value: number; o
 }
 
 function TemporaryPassword({ password }: { password: string }) {
+  const { t } = usePreferences()
   return (
     <div className="ef-card ef-card--panel">
-      <p className="label">Senha temporária</p>
+      <p className="label">{t('gestor.tempPassword')}</p>
       <p className="number-md fr-break">{password}</p>
-      <p className="ef-field__hint">Copie agora. Ela não aparece de novo.</p>
+      <p className="ef-field__hint">{t('gestor.tempHint')}</p>
     </div>
   )
 }
@@ -257,6 +261,7 @@ function NewClient({ onCreated }: { onCreated: () => Promise<void> }) {
   const [form, setForm] = useState({ name: '', segment: '', ownerName: '', ownerEmail: '', plan: 'basico' as PlanId })
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const { t } = usePreferences()
 
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) =>
     setForm({ ...form, [key]: event.target.value })
@@ -271,8 +276,8 @@ function NewClient({ onCreated }: { onCreated: () => Promise<void> }) {
     } catch (failure) {
       setError(
         failure instanceof ApiError && failure.code === 'email_em_uso'
-          ? 'Esse e-mail já está em uso.'
-          : 'Confira os dados e tente de novo.',
+          ? t('gestor.emailInUse')
+          : t('gestor.checkData'),
       )
     }
   }
@@ -281,36 +286,36 @@ function NewClient({ onCreated }: { onCreated: () => Promise<void> }) {
 
   return (
     <form className="ef-card" onSubmit={submit}>
-      <h2 className="title-md">Novo negócio</h2>
+      <h2 className="title-md">{t('gestor.newBusiness')}</h2>
       <label className="ef-field">
-        <span className="ef-field__label">Nome do negócio</span>
+        <span className="ef-field__label">{t('gestor.businessName')}</span>
         <input className="ef-input" required value={form.name} onChange={set('name')} />
       </label>
       <label className="ef-field">
-        <span className="ef-field__label">Segmento</span>
+        <span className="ef-field__label">{t('gestor.segment')}</span>
         <input className="ef-input" required value={form.segment} onChange={set('segment')} />
       </label>
       <label className="ef-field">
-        <span className="ef-field__label">Nome do dono</span>
+        <span className="ef-field__label">{t('gestor.ownerName')}</span>
         <input className="ef-input" required value={form.ownerName} onChange={set('ownerName')} />
       </label>
       <label className="ef-field">
-        <span className="ef-field__label">E-mail de acesso</span>
+        <span className="ef-field__label">{t('gestor.ownerEmail')}</span>
         <input className="ef-input" required type="email" value={form.ownerEmail} onChange={set('ownerEmail')} />
       </label>
       <label className="ef-field">
-        <span className="ef-field__label">Plano</span>
+        <span className="ef-field__label">{t('gestor.plan')}</span>
         <select className="ef-input" value={form.plan} onChange={set('plan')}>
           {Object.values(PLANS).map((plan) => (
             <option key={plan.id} value={plan.id}>
-              {plan.name}
+              {t(`plan.${plan.id}`)}
             </option>
           ))}
         </select>
       </label>
       {error && <p className="ef-alert ef-alert--danger" role="alert">{error}</p>}
       <button type="submit" className="ef-button ef-button--brand ef-button--full">
-        Criar conta
+        {t('gestor.create')}
       </button>
     </form>
   )

@@ -4,14 +4,15 @@ import { centsInput, parseCents } from '../lib/format'
 import { APPOINTMENT_DURATIONS } from '../lib/types'
 import type { Service, ServiceInput } from '../lib/types'
 import { ConfirmDialog } from './ConfirmDialog'
+import { usePreferences } from './Preferences'
 
 const DEFAULT_DURATION = 30
-const INVALID_PRICE = 'Escreva o valor assim: 45,00.'
 
-function DurationOptions() {
+export function DurationOptions() {
+  const { t } = usePreferences()
   return APPOINTMENT_DURATIONS.map((minutes) => (
     <option key={minutes} value={minutes}>
-      {minutes} minutos
+      {t('common.minutes', { n: minutes })}
     </option>
   ))
 }
@@ -24,6 +25,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
   const [error, setError] = useState('')
   const [removing, setRemoving] = useState<Service | null>(null)
   const [version, setVersion] = useState(0)
+  const { t } = usePreferences()
 
   useEffect(() => {
     api<{ services: Service[] }>('/workspace/services')
@@ -39,7 +41,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
       return true
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === 'nome_em_uso') {
-        setError('Já existe um serviço com esse nome. Use outro nome.')
+        setError(t('services.nameInUse'))
       } else {
         onFailure(failure)
       }
@@ -51,7 +53,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
     event.preventDefault()
     const priceCents = parseCents(price)
     if (priceCents === undefined) {
-      setError(INVALID_PRICE)
+      setError(t('common.priceFormat'))
       return
     }
     if (await send('/workspace/services', 'POST', { name, durationMinutes, priceCents })) {
@@ -73,26 +75,26 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
   function changePrice(item: Service, text: string) {
     const priceCents = parseCents(text)
     if (priceCents === undefined && text.trim()) {
-      setError(INVALID_PRICE)
+      setError(t('common.priceFormat'))
       setVersion(version + 1)
       return
     }
     void change(item, { ...item, priceCents: priceCents ?? null })
   }
 
-  if (!services) return <p className="fr-status">Carregando...</p>
+  if (!services) return <p className="fr-status">{t('common.loading')}</p>
 
   return (
     <section className="fr-stack-lg">
       <div className="ef-stack">
-        <h1 className="title-lg">Serviços</h1>
-        <p className="ef-card__text">Adicione o que você oferece. Ao marcar um horário, a duração e o valor já vêm preenchidos.</p>
+        <h1 className="title-lg">{t('services.title')}</h1>
+        <p className="ef-card__text">{t('services.text')}</p>
       </div>
 
       <form className="ef-card ef-card--panel" onSubmit={add}>
         <div className="fr-service-form">
           <label className="ef-field">
-            <span className="ef-field__label">Novo serviço</span>
+            <span className="ef-field__label">{t('services.new')}</span>
             <input
               className="ef-input"
               required
@@ -102,7 +104,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
             />
           </label>
           <label className="ef-field">
-            <span className="ef-field__label">Duração</span>
+            <span className="ef-field__label">{t('services.duration')}</span>
             <select
               className="ef-input"
               value={durationMinutes}
@@ -112,7 +114,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
             </select>
           </label>
           <label className="ef-field">
-            <span className="ef-field__label">Valor (R$)</span>
+            <span className="ef-field__label">{t('services.price')}</span>
             <input
               className="ef-input"
               required
@@ -123,7 +125,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
             />
           </label>
           <button type="submit" className="ef-button ef-button--primary">
-            Adicionar
+            {t('common.add')}
           </button>
         </div>
         {error && (
@@ -134,7 +136,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
       </form>
 
       {services.length === 0 ? (
-        <p className="ef-card__text">Nenhum serviço ainda.</p>
+        <p className="ef-card__text">{t('services.none')}</p>
       ) : (
         <div className="ef-card">
           <ul className="ef-list">
@@ -143,14 +145,14 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
                 <input
                   key={`${item.name}-${version}`}
                   className="ef-input"
-                  aria-label={`Nome de ${item.name}`}
+                  aria-label={t('services.nameOf', { name: item.name })}
                   maxLength={120}
                   defaultValue={item.name}
                   onBlur={(event) => void change(item, { ...item, name: event.target.value })}
                 />
                 <select
                   className="ef-input"
-                  aria-label={`Duração de ${item.name}`}
+                  aria-label={t('services.durationOf', { name: item.name })}
                   value={item.durationMinutes}
                   onChange={(event) => void change(item, { ...item, durationMinutes: Number(event.target.value) })}
                 >
@@ -159,7 +161,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
                 <input
                   key={`${item.priceCents}-${version}`}
                   className="ef-input"
-                  aria-label={`Valor de ${item.name} em reais`}
+                  aria-label={t('services.priceOf', { name: item.name })}
                   inputMode="decimal"
                   placeholder="0,00"
                   defaultValue={centsInput(item.priceCents)}
@@ -170,7 +172,7 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
                   className="ef-button ef-button--danger ef-button--sm"
                   onClick={() => setRemoving(item)}
                 >
-                  Remover
+                  {t('common.remove')}
                 </button>
               </li>
             ))}
@@ -180,9 +182,9 @@ export function Services({ onFailure }: { onFailure: (failure: unknown) => void 
 
       {removing && (
         <ConfirmDialog
-          title={`Remover ${removing.name}?`}
-          text="Esse serviço sai da lista. Os horários já marcados continuam na agenda."
-          confirmLabel="Remover"
+          title={t('services.removeTitle', { name: removing.name })}
+          text={t('services.removeText')}
+          confirmLabel={t('common.remove')}
           onConfirm={() => {
             setRemoving(null)
             void send(`/workspace/services/${removing.id}`, 'DELETE')

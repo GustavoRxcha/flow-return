@@ -7,6 +7,7 @@ import type { Appointment, Professional } from '../lib/types'
 import type { AgendaTarget } from './Agenda'
 import { MonthGrid } from './CalendarViews'
 import { FinancePanel } from './FinancePanel'
+import { usePreferences } from './Preferences'
 
 const MAX_TODAY = 5
 
@@ -23,6 +24,7 @@ export function Home({ metrics, today, onStart, onOpenAgenda, onFailure }: Props
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const several = professionals.length > 1
+  const { locale, t, tp } = usePreferences()
 
   useEffect(() => {
     api<{ appointments: Appointment[]; professionals: Professional[] }>('/workspace/agenda')
@@ -41,23 +43,23 @@ export function Home({ metrics, today, onStart, onOpenAgenda, onFailure }: Props
         <div className="fr-home__boxes">
           <section className="ef-card ef-card--panel">
             <div className="fr-spread">
-              <h2 className="ef-stat__label">Agendamentos via WhatsApp</h2>
-              <span className="ef-badge">Em breve</span>
+              <h2 className="ef-stat__label">{t('home.whatsappTitle')}</h2>
+              <span className="ef-badge">{t('common.soon')}</span>
             </div>
             <p className="ef-stat__value">0</p>
-            <p className="ef-stat__note">Quem marcar pelo WhatsApp vai aparecer aqui.</p>
+            <p className="ef-stat__note">{t('home.whatsappNote')}</p>
           </section>
 
           <section className="ef-card ef-card--panel">
-            <h2 className="ef-stat__label">Clientes sumidos</h2>
+            <h2 className="ef-stat__label">{t('home.lostTitle')}</h2>
             <p className="ef-stat__value">{inQueue}</p>
             <p className="ef-stat__note">
-              {waiting} aguardando retorno · {returned} {returned === 1 ? 'voltou' : 'voltaram'}
-              {recoveredValue > 0 && ` · ${formatMoney(recoveredValue)} de volta`}
+              {t('home.waiting', { n: waiting })} · {tp('home.returned', returned)}
+              {recoveredValue > 0 && ` · ${t('home.recovered', { value: formatMoney(recoveredValue) })}`}
             </p>
             {inQueue > 0 && leftToday > 0 && (
               <button type="button" className="ef-button ef-button--primary ef-button--sm" onClick={onStart}>
-                Ver clientes
+                {t('home.seeCustomers')}
               </button>
             )}
           </section>
@@ -66,16 +68,16 @@ export function Home({ metrics, today, onStart, onOpenAgenda, onFailure }: Props
         <FinancePanel appointments={appointments} professionals={professionals} today={today} />
       </div>
 
-      <section className="fr-stack-lg" aria-label="Resumo da agenda">
+      <section className="fr-stack-lg" aria-label={t('home.agendaSummary')}>
         <div className="ef-stack">
           <div className="fr-cal-bar">
-            <h2 className="title-md">{monthLabel(today)}</h2>
+            <h2 className="title-md">{monthLabel(today, locale)}</h2>
             <button
               type="button"
               className="ef-button ef-button--ghost ef-button--sm"
               onClick={() => onOpenAgenda({ view: 'mes' })}
             >
-              Abrir agenda
+              {t('home.openAgenda')}
             </button>
           </div>
           <MonthGrid
@@ -87,9 +89,9 @@ export function Home({ metrics, today, onStart, onOpenAgenda, onFailure }: Props
         </div>
 
         <div>
-          <h2 className="title-md">Clientes de hoje</h2>
+          <h2 className="title-md">{t('home.todayTitle')}</h2>
           {todayItems.length === 0 ? (
-            <p className="ef-card__text">Nenhum horário marcado para hoje.</p>
+            <p className="ef-card__text">{t('home.noneToday')}</p>
           ) : (
             <ul className="ef-list">
               {todayItems.slice(0, MAX_TODAY).map((item) => (
@@ -109,7 +111,7 @@ export function Home({ metrics, today, onStart, onOpenAgenda, onFailure }: Props
                   className="ef-button ef-button--ghost ef-button--sm ef-button--full"
                   onClick={() => onOpenAgenda({ date: today, view: 'dia' })}
                 >
-                  Ver todos os clientes
+                  {t('home.seeAll')}
                 </button>
               </li>
             </ul>

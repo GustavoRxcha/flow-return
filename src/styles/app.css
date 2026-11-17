@@ -37,10 +37,15 @@ body { margin: 0; background: var(--surface); }
   border-bottom: 1px solid var(--line); background: var(--surface);
 }
 .fr-topbar__name { min-width: 0; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.fr-topbar__actions { justify-content: flex-end; flex-wrap: nowrap; }
+.fr-topbar__actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-4); }
+.fr-topbar__group { flex-wrap: nowrap; gap: var(--space-4); }
+/* No celular: logo e idioma/tema na primeira linha; nome do negócio, Ajustes e Sair na segunda. */
 @media (max-width: 640px) {
-  .fr-topbar { grid-template-columns: auto auto; justify-content: space-between; gap: var(--space-4) var(--space-12); padding-inline: var(--space-16); }
-  .fr-topbar__name { grid-column: 1 / -1; grid-row: 2; }
+  .fr-topbar { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-8) var(--space-12); padding-inline: var(--space-16); }
+  .fr-topbar .fr-topbar__actions { display: contents; }
+  .fr-topbar__prefs { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+  .fr-topbar__name { grid-column: 1; grid-row: 2; text-align: left; }
+  .fr-topbar__account { grid-column: 2; grid-row: 2; justify-content: flex-end; }
 }
 .fr-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: var(--space-16); }
 
@@ -94,3 +99,19 @@ body { margin: 0; background: var(--surface); }
 .fr-chat__line--cliente { align-self: flex-end; background: var(--surface-inverse); color: var(--on-inverse); }
 .fr-chat__line--sistema { align-self: center; padding: 0; color: var(--ink-muted); }
 .fr-chat__form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-8); }
+
+/* Idioma e tema no topo. O menu fica plano, com borda, porque sombra só existe dentro do design system. */
+.fr-icon-button { padding: 0; width: var(--control-sm); }
+.fr-lang { position: relative; }
+.fr-lang__button { padding-inline: var(--space-12); gap: var(--space-4); }
+.fr-lang__menu {
+  position: absolute; top: calc(100% + var(--space-4)); right: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: var(--space-4);
+  min-width: calc(var(--space-128) + var(--space-48)); padding: var(--space-8);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.fr-lang__option { justify-content: flex-start; padding-inline: var(--space-12); }
+.fr-lang__option[aria-checked="true"] { background: var(--surface-alt); }
+.fr-lang__name { flex: 1; text-align: left; }
+.fr-flag { display: block; flex: none; width: 20px; height: 14px; border-radius: 2px; outline: 1px solid var(--line); object-fit: cover; }

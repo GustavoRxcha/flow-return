@@ -1,5 +1,6 @@
 import { addDays } from './dates'
 import type { Appointment, AppointmentInput, Professional } from './types'
+import { DEFAULT_LOCALE, intlOf, translate, type Locale } from './i18n'
 
 function pad(value: number): string {
   return String(value).padStart(2, '0')
@@ -48,14 +49,14 @@ export function freeProfessionals<T extends Pick<Professional, 'id'>>(
   return professionals.filter(({ id }) => !findConflict(appointments, { ...slot, professionalId: id }, ignoreId))
 }
 
-export function dayLabel(date: string, today: string): string {
-  if (date === today) return 'Hoje'
-  if (date === addDays(today, 1)) return 'Amanhã'
+export function dayLabel(date: string, today: string, locale: Locale = DEFAULT_LOCALE): string {
+  if (date === today) return translate(locale, 'common.today')
+  if (date === addDays(today, 1)) return translate(locale, 'common.tomorrow')
   const [year, month, day] = date.split('-').map(Number)
-  const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'UTC' }).format(
-    new Date(Date.UTC(year, month - 1, day)),
-  )
-  return `${weekday[0].toUpperCase()}${weekday.slice(1)}, ${pad(day)}/${pad(month)}`
+  const utc = new Date(Date.UTC(year, month - 1, day))
+  const weekday = new Intl.DateTimeFormat(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }).format(utc)
+  const dayMonth = new Intl.DateTimeFormat(intlOf(locale), { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(utc)
+  return `${weekday[0].toUpperCase()}${weekday.slice(1)}, ${dayMonth}`
 }
 
 const DEFAULT_FIRST_HOUR = 7
@@ -75,9 +76,9 @@ export function weekdayOf(date: string): number {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
 }
 
-export function monthLabel(date: string): string {
+export function monthLabel(date: string, locale: Locale = DEFAULT_LOCALE): string {
   const [year, month] = parts(date)
-  const name = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'UTC' }).format(
+  const name = new Intl.DateTimeFormat(intlOf(locale), { month: 'long', timeZone: 'UTC' }).format(
     new Date(Date.UTC(year, month - 1, 1)),
   )
   return `${name[0].toUpperCase()}${name.slice(1)} ${year}`

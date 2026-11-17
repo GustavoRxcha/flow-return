@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { usePreferences } from './Preferences'
 
 interface Props {
   title: string
@@ -10,6 +11,7 @@ interface Props {
 
 export function ConfirmDialog({ title, text, confirmLabel, onConfirm, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
+  const { t } = usePreferences()
 
   useEffect(() => {
     const element = dialog.current
@@ -23,7 +25,7 @@ export function ConfirmDialog({ title, text, confirmLabel, onConfirm, onClose }:
       <p className="ef-modal__text">{text}</p>
       <div className="ef-modal__actions">
         <button type="button" className="ef-button ef-button--secondary" onClick={onClose}>
-          Cancelar
+          {t('common.cancel')}
         </button>
         <button type="button" className="ef-button ef-button--danger" onClick={onConfirm}>
           {confirmLabel}

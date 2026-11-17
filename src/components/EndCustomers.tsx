@@ -9,6 +9,7 @@ import type { Appointment, AppState } from '../lib/types'
 import { ContactDialog } from './ContactDialog'
 import { Empty } from './Empty'
 import { MessageComposer } from './MessageComposer'
+import { usePreferences } from './Preferences'
 import type { Dispatch } from './ReturnClientApp'
 
 interface Props {
@@ -26,7 +27,8 @@ const ABSENCE_BADGES = {
 }
 
 function AbsenceBadge({ days }: { days: number }) {
-  return <span className={ABSENCE_BADGES[absenceTone(days)]}>{days === 1 ? '1 dia' : `${days} dias`}</span>
+  const { tp } = usePreferences()
+  return <span className={ABSENCE_BADGES[absenceTone(days)]}>{tp('customers.days', days)}</span>
 }
 
 const DEFAULT_FILTERS = { search: '', next: 'todos' as NextFilter, sort: 'ultimo-antigo' as RosterSort }
@@ -37,6 +39,7 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [contact, setContact] = useState<string | null>(null)
   const [recipients, setRecipients] = useState<RosterRow[] | null>(null)
+  const { t } = usePreferences()
 
   useEffect(() => {
     api<{ appointments: Appointment[] }>('/workspace/agenda')
@@ -73,51 +76,51 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
     <section className="ef-stack">
       <div className="fr-spread">
         <div>
-          <h1 className="title-lg">Clientes</h1>
+          <h1 className="title-lg">{t('customers.title')}</h1>
           <p className="ef-stat__note">
-            {rows.length} de {roster.length} · Hoje: {metrics.sentToday} de {state.settings.dailyLimit} mensagens
+            {t('customers.count', { shown: rows.length, total: roster.length, sent: metrics.sentToday, limit: state.settings.dailyLimit })}
           </p>
         </div>
         {selected.size > 0 && (
           <button type="button" className="ef-button ef-button--primary ef-button--sm" onClick={openBulk}>
-            Enviar para {selected.size}
+            {t('customers.sendTo', { n: selected.size })}
           </button>
         )}
       </div>
 
       <div className="fr-filters">
         <label className="ef-field">
-          <span className="ef-field__label">Buscar</span>
+          <span className="ef-field__label">{t('customers.search')}</span>
           <input
             className="ef-input"
             inputMode="search"
-            placeholder="Nome ou telefone"
+            placeholder={t('customers.searchPlaceholder')}
             value={filters.search}
             onChange={(event) => setFilters({ ...filters, search: event.target.value })}
           />
         </label>
         <label className="ef-field">
-          <span className="ef-field__label">Próximo atendimento</span>
+          <span className="ef-field__label">{t('customers.next')}</span>
           <select
             className="ef-input"
             value={filters.next}
             onChange={(event) => setFilters({ ...filters, next: event.target.value as NextFilter })}
           >
-            <option value="todos">Todos</option>
-            <option value="sem">Não marcado</option>
-            <option value="com">Marcado</option>
+            <option value="todos">{t('common.all')}</option>
+            <option value="sem">{t('customers.notBooked')}</option>
+            <option value="com">{t('customers.booked')}</option>
           </select>
         </label>
         <label className="ef-field">
-          <span className="ef-field__label">Ordenar por</span>
+          <span className="ef-field__label">{t('customers.sortBy')}</span>
           <select
             className="ef-input"
             value={filters.sort}
             onChange={(event) => setFilters({ ...filters, sort: event.target.value as RosterSort })}
           >
-            {Object.entries(ROSTER_SORTS).map(([value, label]) => (
+            {(Object.keys(ROSTER_SORTS) as RosterSort[]).map((value) => (
               <option key={value} value={value}>
-                {label}
+                {t(`customers.sort.${value}`)}
               </option>
             ))}
           </select>
@@ -126,9 +129,9 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
 
       {rows.length === 0 ? (
         <Empty
-          title="Ninguém com esses filtros."
-          text="Mude a busca para ver outros clientes."
-          action={{ label: 'Limpar filtros', onClick: () => setFilters(DEFAULT_FILTERS) }}
+          title={t('customers.emptyTitle')}
+          text={t('customers.emptyText')}
+          action={{ label: t('customers.clearFilters'), onClick: () => setFilters(DEFAULT_FILTERS) }}
         />
       ) : (
         <div className="ef-tablewrap">
@@ -139,17 +142,17 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
                   <input
                     type="checkbox"
                     className="ef-check"
-                    aria-label="Selecionar todos da lista"
+                    aria-label={t('customers.selectAll')}
                     checked={allSelected}
                     onChange={toggleAll}
                   />
                 </th>
-                <th>Nome</th>
-                <th>Telefone</th>
-                <th>Último atendimento</th>
-                <th>Dias sem vir</th>
-                <th>Próximo atendimento</th>
-                <th>Contato</th>
+                <th>{t('customers.name')}</th>
+                <th>{t('customers.phone')}</th>
+                <th>{t('customers.lastVisit')}</th>
+                <th>{t('customers.daysAway')}</th>
+                <th>{t('customers.next')}</th>
+                <th>{t('customers.contact')}</th>
               </tr>
             </thead>
             <tbody>
@@ -162,7 +165,7 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
                       <input
                         type="checkbox"
                         className="ef-check"
-                        aria-label={`Selecionar ${customer.name}`}
+                        aria-label={t('customers.select', { name: customer.name })}
                         disabled={blocked}
                         checked={selected.has(customer.phone)}
                         onChange={() => toggle(customer.phone)}
@@ -176,19 +179,19 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
                     </td>
                     <td className="fr-nowrap">
                       {next ? (
-                        `${formatDate(next.date)} às ${next.time}`
+                        t('common.dateAt', { date: formatDate(next.date), time: next.time })
                       ) : (
-                        <span className="ef-badge ef-badge--danger">Não marcado</span>
+                        <span className="ef-badge ef-badge--danger">{t('customers.notBooked')}</span>
                       )}
                     </td>
                     <td>
                       <button
                         type="button"
                         className="ef-button ef-button--secondary ef-button--sm"
-                        aria-label={`Contato de ${customer.name}`}
+                        aria-label={t('customers.contactOf', { name: customer.name })}
                         onClick={() => setContact(customer.phone)}
                       >
-                        {blocked ? 'Não chamar' : 'Contato'}
+                        {blocked ? t('customers.doNotCall') : t('customers.contact')}
                       </button>
                     </td>
                   </tr>
