@@ -7,6 +7,11 @@ export interface OutgoingMessage {
   text: string
   /** Até 3 botões de resposta rápida. A Meta corta o título em 20 letras. */
   buttons?: Array<{ id: string; title: string }>
+  /**
+   * Modelo aprovado na Meta. Fora da janela de 24 horas, é o único jeito de a empresa escrever primeiro,
+   * como nos avisos para o dono. Os parâmetros preenchem {{1}}, {{2}}... e não podem ter quebra de linha.
+   */
+  template?: { name: string; language: string; parameters: string[] }
 }
 
 /** Botões que acompanham um pedido de confirmação. O toque chega como texto que o sim já reconhece. */
@@ -16,8 +21,19 @@ export const CONFIRM_BUTTONS = [
 ]
 
 /** Corpo da mensagem para a API da Meta: texto simples ou texto com botões. */
-export function metaBody({ phone, text, buttons }: OutgoingMessage) {
+export function metaBody({ phone, text, buttons, template }: OutgoingMessage) {
   const base = { messaging_product: 'whatsapp', recipient_type: 'individual', to: phone }
+  if (template) {
+    return {
+      ...base,
+      type: 'template',
+      template: {
+        name: template.name,
+        language: { code: template.language },
+        components: [{ type: 'body', parameters: template.parameters.map((value) => ({ type: 'text', text: value })) }],
+      },
+    }
+  }
   if (!buttons?.length) return { ...base, type: 'text', text: { body: text } }
   return {
     ...base,

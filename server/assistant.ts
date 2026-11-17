@@ -6,6 +6,7 @@ import { configuredChat, type ChatMessage, type ChatModel } from './ai.ts'
 import type { Db } from './db.ts'
 import { createAppointment, deleteOwnAppointment, getReturnClient, listAppointments, listOwnAppointments, listProfessionals, listServices, loadState, moveOwnAppointment } from './repo.ts'
 import { EMPTY_BUSINESS_INFO, type BusinessInfo } from '../src/lib/businessInfo.ts'
+import { ownerNoticeLine, type OwnerEvent } from '../src/lib/notices.ts'
 
 /** Conversa parada há mais tempo que isso recomeça do zero. */
 const CONVERSATION_TTL_MS = 6 * 60 * 60 * 1000
@@ -30,6 +31,7 @@ const STOP_FOR_OTHER_REPLY = 'Esse pedido vale só para quem escreve. Cada pesso
 interface AssistantRow {
   name: string
   phone: string | null
+  owner_phone: string | null
   open_days: string
   opens_at: string
   closes_at: string
@@ -45,6 +47,7 @@ export function getAssistant(db: Db, returnClientId: string): AssistantSettings 
   return {
     name: row.name,
     phone: row.phone,
+    ownerPhone: row.owner_phone ?? null,
     openDays: JSON.parse(row.open_days) as number[],
     opensAt: row.opens_at,
     closesAt: row.closes_at,
@@ -55,16 +58,17 @@ export function getAssistant(db: Db, returnClientId: string): AssistantSettings 
 
 export function saveAssistant(db: Db, returnClientId: string, input: AssistantSettings): void {
   db.prepare(
-    `INSERT INTO assistants (return_client_id, name, phone, open_days, opens_at, closes_at, reactivation_enabled, business_info)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO assistants (return_client_id, name, phone, owner_phone, open_days, opens_at, closes_at, reactivation_enabled, business_info)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (return_client_id) DO UPDATE SET
-       name = excluded.name, phone = excluded.phone, open_days = excluded.open_days, opens_at = excluded.opens_at,
+       name = excluded.name, phone = excluded.phone, owner_phone = excluded.owner_phone, open_days = excluded.open_days, opens_at = excluded.opens_at,
        closes_at = excluded.closes_at, reactivation_enabled = excluded.reactivation_enabled,
        business_info = excluded.business_info`,
   ).run(
     returnClientId,
     input.name,
     input.phone,
+    input.ownerPhone ?? null,
     JSON.stringify(input.openDays),
     input.opensAt,
     input.closesAt,
@@ -126,6 +130,8 @@ export interface TurnResult {
   trail: string[]
   /** A resposta pede um sim: no WhatsApp ela sai com botões de confirmar. */
   confirm: boolean
+  /** O que mudou na agenda nesta mensagem. Cada um vira um aviso para o dono. */
+  events: OwnerEvent[]
 }
 
 /** Recebe uma mensagem e devolve a resposta. O WhatsApp vai chamar esta mesma função. */
@@ -154,6 +160,7 @@ export async function assistantTurn(
 
   const history: ChatMessage[] = [...saved.messages, { role: 'user', content: text }]
   const trail: string[] = []
+  const events: OwnerEvent[] = []
   let booked = false
   let changed = false
   const firstName = (name: string) => name.trim().split(/\s+/)[0].toLowerCase()
@@ -184,6 +191,12 @@ export async function assistantTurn(
   const answeredName = !ctx.customerName && lastReply ? nameFromAnswer(lastReply.content, text) : null
   if (answeredName) saveCustomer(answeredName.slice(0, MAX_CUSTOMER_NAME))
 
+  /** Guarda o aviso para o dono. Quem envia é o WhatsApp; no teste da tela, aparece no registro. */
+  function notify(event: OwnerEvent): void {
+    events.push(event)
+    trail.push(ctx.assistant.ownerPhone ? `Aviso para o dono: ${ownerNoticeLine(event)}` : 'Sem número do dono: nenhum aviso enviado.')
+  }
+
   function refreshAgenda(): void {
     ctx.appointments = listAppointments(db, returnClientId)
     ctx.ownAppointments = phone ? listOwnAppointments(db, returnClientId, phone) : []
@@ -202,12 +215,14 @@ export async function assistantTurn(
     changed = true
     doneReply = doneText
     trail.push(`Feito: ${summary}.`)
+    notify({ kind: kind === 'desmarcar' ? 'desmarcado' : 'remarcado', customerName: ctx.customerName ?? '', summary: summary.replace(/^(Desmarcar|Remarcar) /, '') })
     return { ok: true, feito: summary }
   }
 
   const conversationDates = () => datesInConversation(contents('tool'), contents('user'), today)
 
   function runTool(name: string, args: ToolArgs): unknown {
+    ctx.customerMessages = contents('user')
     if (name === 'ver_horarios') {
       const result = lookupTimes(args, ctx, conversationDates())
       available = availabilityIn(result)
@@ -236,6 +251,7 @@ export async function assistantTurn(
       const { priceCents } = prepared.booking
       doneReply = `Pronto, marquei: ${prepared.summary}.${priceCents === null ? '' : ` Valor: ${formatCents(priceCents)}.`}`
       trail.push(`Marcou: ${prepared.summary}.`)
+      notify({ kind: 'marcado', customerName: ctx.customerName ?? '', summary: prepared.summary })
       return { ok: true, marcado: prepared.summary }
     }
     if (name === 'ver_meus_horarios') {
@@ -360,5 +376,5 @@ export async function assistantTurn(
   })
   // Pedido de confirmação: a alteração preparada ou um horário proposto que o sim já marcaria.
   const confirm = waiting !== null || (!booked && !stopped && acceptedProposal(reply, 'sim', ctx, contents('user')) !== null)
-  return { reply, booked, trail, confirm }
+  return { reply, booked, trail, confirm, events }
 }

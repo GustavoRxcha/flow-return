@@ -21,7 +21,9 @@ Esses nomes servem para conversar e para o código. Nas telas, use "clientes" pa
 - O que o negócio ensina à atendente entra por campos fixos (`src/lib/businessInfo.ts`), nunca por texto livre, e chega à IA sempre na mesma estrutura.
 - A IA da atendente conversa, mas horário, valor e profissional saem das ferramentas de `src/lib/assistant.ts`. Toda resposta passa por `findInvented` antes de sair. Nunca dê à IA outro caminho para consultar ou marcar.
 - A pessoa no WhatsApp não espera: resposta barrada ganha no máximo uma reescrita. Se o sistema já tem a resposta certa (agenda consultada ou ação feita), ele responde sem pedir outra volta à IA.
-- Nas ferramentas, serviço e profissional vêm de listas fechadas e o dia vem em AAAA-MM-DD.
+- Nas ferramentas, serviço e profissional vêm de listas fechadas, e o dia vem em dia e mês separados, sem ano: vale a próxima vez que a data acontece, até 60 dias à frente.
+- O dia só vale se a pessoa pediu (as palavras dela vão em `pedido` e precisam estar na conversa) ou se o sistema ofereceu porque o dia pedido estava cheio. A IA nunca escolhe o dia.
+- O que muda a agenda pelo WhatsApp vira aviso para o número do dono (Atendente IA), depois que a pessoa recebe a resposta.
 - O que muda a agenda sai escrito pelo sistema, não pela IA: a pergunta de confirmação e a mensagem de pronto.
 - A atendente mostra todos os horários livres do dia, em faixas (`availabilityText`), sem limite de quantidade.
 - A chave de IA fica só no `.env`, nunca no código, em telas ou em registros.

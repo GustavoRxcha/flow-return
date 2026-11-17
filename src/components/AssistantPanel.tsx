@@ -34,15 +34,16 @@ interface Props {
 }
 
 export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, onFailure, onDataChanged }: Props) {
-  const [form, setForm] = useState<(AssistantSettings & { phoneText: string }) | null>(null)
+  const [form, setForm] = useState<(AssistantSettings & { phoneText: string; ownerPhoneText: string }) | null>(null)
   const [phoneError, setPhoneError] = useState('')
+  const [ownerPhoneError, setOwnerPhoneError] = useState('')
   const [formError, setFormError] = useState('')
   const [saved, setSaved] = useState(false)
   const { t, tp, tl } = usePreferences()
 
   function load(reply: Reply) {
-    const { phone } = reply.assistant
-    setForm({ ...reply.assistant, phoneText: phone ? formatBrPhone(phone) : '' })
+    const { phone, ownerPhone } = reply.assistant
+    setForm({ ...reply.assistant, phoneText: phone ? formatBrPhone(phone) : '', ownerPhoneText: ownerPhone ? formatBrPhone(ownerPhone) : '' })
   }
 
   useEffect(() => {
@@ -71,16 +72,19 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
   async function save(event: FormEvent) {
     event.preventDefault()
     setPhoneError('')
+    setOwnerPhoneError('')
     setFormError('')
     if (!form!.openDays.length) return setFormError(t('assistant.pickDay'))
     if (form!.opensAt >= form!.closesAt) return setFormError(t('assistant.hoursOrder'))
-    const { phoneText, ...settings } = form!
+    const { phoneText, ownerPhoneText, ...settings } = form!
     try {
-      load(await api<Reply>('/workspace/assistant', { method: 'PUT', body: { ...settings, phone: phoneText } }))
+      load(await api<Reply>('/workspace/assistant', { method: 'PUT', body: { ...settings, phone: phoneText, ownerPhone: ownerPhoneText } }))
       setSaved(true)
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === 'telefone_invalido') {
         setPhoneError(t('assistant.badPhone'))
+      } else if (failure instanceof ApiError && failure.code === 'telefone_dono_invalido') {
+        setOwnerPhoneError(t('assistant.badPhone'))
       } else {
         onFailure(failure)
       }
@@ -114,6 +118,22 @@ export function AssistantPanel({ inQueue, inactiveDays, dailyLimit, customers, o
                 <span className="ef-field__error">{phoneError}</span>
               ) : (
                 <span className="ef-field__hint">{t('assistant.phoneHint')}</span>
+              )}
+            </label>
+            <label className="ef-field">
+              <span className="ef-field__label">{t('assistant.ownerPhone')}</span>
+              <input
+                className="ef-input"
+                inputMode="tel"
+                placeholder="(11) 98765-4321"
+                value={form.ownerPhoneText}
+                aria-invalid={ownerPhoneError ? true : undefined}
+                onChange={(event) => change({ ownerPhoneText: event.target.value })}
+              />
+              {ownerPhoneError ? (
+                <span className="ef-field__error">{ownerPhoneError}</span>
+              ) : (
+                <span className="ef-field__hint">{t('assistant.ownerPhoneHint')}</span>
               )}
             </label>
             <label className="ef-field">

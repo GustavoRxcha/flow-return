@@ -3,7 +3,8 @@ import { Hono } from 'hono'
 import { CONFIRM_BUTTONS, metaChannel, type SendChannel } from '../src/lib/channel.ts'
 import { phoneFromWhatsApp } from '../src/lib/phone.ts'
 import { AiUnavailable, type ChatModel } from './ai.ts'
-import { assistantTurn, MAX_ASSISTANT_TEXT } from './assistant.ts'
+import { assistantTurn, getAssistant, MAX_ASSISTANT_TEXT } from './assistant.ts'
+import { ownerNoticeLine, ownerNoticeText, type OwnerEvent } from '../src/lib/notices.ts'
 import type { Db } from './db.ts'
 import { getReturnClient } from './repo.ts'
 
@@ -72,7 +73,24 @@ function isFirstTime(db: Db, messageId: string, now: number): boolean {
   return db.prepare('INSERT OR IGNORE INTO whatsapp_received (message_id, received_at) VALUES (?, ?)').run(messageId, now).changes === 1
 }
 
-export function createInbox(db: Db, channelFor: (line: string) => SendChannel, chat?: ChatModel) {
+export interface NoticeSettings {
+  /** Nome do modelo aprovado na Meta para os avisos. Sem ele, o aviso sai como texto, que só chega dentro da janela de 24 horas. */
+  template?: string
+  /** Endereço do painel, no fim de cada aviso. */
+  panelUrl?: string
+}
+
+/** Aviso para o dono: modelo da Meta quando houver, texto quando não houver. */
+export function ownerMessage(phone: string, event: OwnerEvent, { template, panelUrl }: NoticeSettings) {
+  if (!template) return { phone, text: ownerNoticeText(event, panelUrl) }
+  return {
+    phone,
+    text: ownerNoticeText(event, panelUrl),
+    template: { name: template, language: 'pt_BR', parameters: [ownerNoticeLine(event), panelUrl ?? 'abra o Flow Return'] },
+  }
+}
+
+export function createInbox(db: Db, channelFor: (line: string) => SendChannel, chat?: ChatModel, notices: NoticeSettings = {}) {
   /** Mensagens esperando resposta por conversa. Quem manda três seguidas recebe uma resposta só. */
   const waiting = new Map<string, string[]>()
 
@@ -80,11 +98,16 @@ export function createInbox(db: Db, channelFor: (line: string) => SendChannel, c
     const texts = waiting.get(key)!
     while (texts.length) {
       const text = texts.splice(0).join('\n').slice(0, MAX_ASSISTANT_TEXT)
-      const { reply, confirm } = await assistantTurn(db, returnClientId, `whatsapp:${phone}`, text, { phone, chat }).catch((failure: unknown) => {
-        if (failure instanceof AiUnavailable) return { reply: OFFLINE_REPLY, confirm: false }
-        throw failure
-      })
+      const { reply, confirm, events } = await assistantTurn(db, returnClientId, `whatsapp:${phone}`, text, { phone, chat }).catch(
+        (failure: unknown) => {
+          if (failure instanceof AiUnavailable) return { reply: OFFLINE_REPLY, confirm: false, events: [] as OwnerEvent[] }
+          throw failure
+        },
+      )
       await channelFor(line).send({ phone: from, text: reply, buttons: confirm ? CONFIRM_BUTTONS : undefined })
+      // A pessoa já tem a resposta. Agora o dono fica sabendo do que mudou na agenda.
+      const owner = events.length ? getAssistant(db, returnClientId).ownerPhone : null
+      if (owner) for (const event of events) await channelFor(line).send(ownerMessage(owner, event, notices))
     }
   }
 
@@ -136,7 +159,7 @@ export function whatsappWebhook(inbox: Inbox, { verifyToken, appSecret }: { veri
 
 /** Liga o WhatsApp a partir do .env. Sem todos os dados, ele fica desligado. */
 export function startWhatsApp(db: Db) {
-  const { WHATSAPP_PHONE_NUMBER_ID: line, WHATSAPP_ACCESS_TOKEN: accessToken, WHATSAPP_APP_SECRET: appSecret, WHATSAPP_VERIFY_TOKEN: verifyToken, WHATSAPP_NEGOCIO: business } = process.env
+  const { WHATSAPP_PHONE_NUMBER_ID: line, WHATSAPP_ACCESS_TOKEN: accessToken, WHATSAPP_APP_SECRET: appSecret, WHATSAPP_VERIFY_TOKEN: verifyToken, WHATSAPP_NEGOCIO: business, WHATSAPP_TEMPLATE_AVISO: template, PANEL_URL: panelUrl } = process.env
   if (!line || !accessToken || !appSecret || !verifyToken || !business) return null
   const row = db.prepare('SELECT id FROM return_clients WHERE name = ?').get(business) as { id: string } | undefined
   if (!row) {
@@ -144,5 +167,6 @@ export function startWhatsApp(db: Db) {
     return null
   }
   linkLine(db, line, row.id)
-  return whatsappWebhook(createInbox(db, (id) => metaChannel(id, accessToken)), { verifyToken, appSecret })
+  const inbox = createInbox(db, (id) => metaChannel(id, accessToken), undefined, { template: template?.trim() || undefined, panelUrl: panelUrl?.trim() || undefined })
+  return whatsappWebhook(inbox, { verifyToken, appSecret })
 }

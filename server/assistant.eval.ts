@@ -372,7 +372,7 @@ for (const [index, scenario] of chosen.entries()) {
     // A IA fora do ar conta como falha desta conversa e não derruba as outras.
     const turn = await assistantTurn(db, id, contact, message, { phone, now }).catch((): TurnResult => {
       unavailable += 1
-      return { reply: NO_ANSWER, booked: false, trail: [], confirm: false }
+      return { reply: NO_ANSWER, booked: false, trail: [], confirm: false, events: [] }
     })
     const ms = Date.now() - start
     slowest = Math.max(slowest, ms)

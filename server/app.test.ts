@@ -536,6 +536,29 @@ describe('atendente', () => {
     expect(other.assistant.phone).toBeNull()
   })
 
+  it('guarda o número do dono, separado do número da atendente', async () => {
+    const cookie = await login(TEST_ACCOUNTS.barbearia)
+    const saved = await request('/workspace/assistant', cookie, { method: 'PUT', body: { ...settings, ownerPhone: '(11) 98765-4321' } })
+    expect((await saved.json()).assistant).toMatchObject({ phone: '5511912345678', ownerPhone: '5511987654321' })
+    const wrong = await request('/workspace/assistant', cookie, { method: 'PUT', body: { ...settings, ownerPhone: '123' } })
+    expect((await wrong.json()).error).toBe('telefone_dono_invalido')
+  })
+
+  it('o que muda a agenda vira aviso para o dono', async () => {
+    const { cookie, id, professional } = await prepared()
+    await request('/workspace/assistant', cookie, { method: 'PUT', body: { ...settings, ownerPhone: '11987654321' } })
+    const { text } = nextDay()
+    const first = professional.name.split(' ')[0]
+    const contact = '5511955553333'
+    await assistantTurn(db, id, contact, `Ana Souza, pezinho ${text} às 14h`, {
+      phone: contact,
+      chat: scripted({ name: 'salvar_cliente', arguments: { nome: 'Ana Souza' } }, `Tenho o Pezinho às 14:00 com o ${first}, pode ser?`),
+    })
+    const done = await assistantTurn(db, id, contact, 'sim', { phone: contact, chat: scripted('Pronto.') })
+    expect(done.events).toEqual([expect.objectContaining({ kind: 'marcado', customerName: 'Ana Souza' })])
+    expect(done.trail.join(' ')).toContain('Aviso para o dono: Novo agendamento: Ana Souza.')
+  })
+
   it('recusa telefone e horário inválidos e fecha a rota para o gestor', async () => {
     const cookie = await login(TEST_ACCOUNTS.barbearia)
     const phone = await request('/workspace/assistant', cookie, { method: 'PUT', body: { ...settings, phone: '123' } })

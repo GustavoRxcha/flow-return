@@ -44,8 +44,10 @@ export const DEFAULT_SETTINGS: Settings = {
 /** Configuração da atendente de cada negócio. O dia da semana vai de 0 (domingo) a 6 (sábado). */
 export interface AssistantSettings {
   name: string
-  /** Número que a atendente usa no WhatsApp, normalizado. */
+  /** Número que a atendente usa no WhatsApp, normalizado. A API escuta este número. */
   phone: string | null
+  /** Número do dono ou responsável, que recebe os avisos da atendente. */
+  ownerPhone: string | null
   openDays: number[]
   opensAt: string
   closesAt: string
@@ -57,6 +59,7 @@ export interface AssistantSettings {
 export const DEFAULT_ASSISTANT: AssistantSettings = {
   name: '',
   phone: null,
+  ownerPhone: null,
   openDays: [1, 2, 3, 4, 5, 6],
   opensAt: '09:00',
   closesAt: '19:00',
