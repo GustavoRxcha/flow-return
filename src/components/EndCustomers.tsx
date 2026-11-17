@@ -134,7 +134,8 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
           action={{ label: t('customers.clearFilters'), onClick: () => setFilters(DEFAULT_FILTERS) }}
         />
       ) : (
-        <div className="ef-tablewrap">
+        <>
+        <div className="ef-tablewrap fr-only-wide">
           <table className="ef-table">
             <thead>
               <tr>
@@ -200,6 +201,49 @@ export function EndCustomers({ state, metrics, today, dispatch, onFailure }: Pro
             </tbody>
           </table>
         </div>
+        <div className="fr-only-narrow">
+          <label className="ef-choice">
+            <input type="checkbox" className="ef-check" checked={allSelected} onChange={toggleAll} />
+            {t('customers.selectAll')}
+          </label>
+        </div>
+        <ul className="ef-list fr-only-narrow">
+          {rows.map((row) => {
+            const { customer, next, lastVisit } = row
+            const blocked = customer.status === 'nao_chamar'
+            return (
+              <li key={customer.phone} className="ef-item fr-person">
+                <input
+                  type="checkbox"
+                  className="ef-check"
+                  aria-label={t('customers.select', { name: customer.name })}
+                  disabled={blocked}
+                  checked={selected.has(customer.phone)}
+                  onChange={() => toggle(customer.phone)}
+                />
+                <button type="button" className="fr-person__open" aria-label={t('customers.contactOf', { name: customer.name })} onClick={() => setContact(customer.phone)}>
+                  <span className="ef-item__body">
+                    <span className="ef-item__title">{customer.name}</span>
+                    <span className="ef-item__meta">
+                      {formatBrPhone(customer.phone)} · {t('customers.lastShort', { date: formatDate(lastVisit) })}
+                    </span>
+                    <span className="fr-person__next">
+                      {blocked ? (
+                        <span className="ef-badge">{t('customers.doNotCall')}</span>
+                      ) : next ? (
+                        <span className="ef-item__meta">{t('customers.nextShort', { when: t('common.dateAt', { date: formatDate(next.date), time: next.time }) })}</span>
+                      ) : (
+                        <span className="ef-badge ef-badge--danger">{t('customers.notBooked')}</span>
+                      )}
+                    </span>
+                  </span>
+                  <AbsenceBadge days={daysBetween(lastVisit, today)} />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        </>
       )}
 
       {contactRow && (

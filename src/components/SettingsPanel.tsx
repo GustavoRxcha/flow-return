@@ -63,7 +63,7 @@ export function SettingsPanel({ state, plan, dispatch, onImport, onFailure }: Pr
 
       <ProfessionalsPanel onFailure={onFailure} />
 
-      <div className="ef-stats">
+      <div className="fr-pair">
         <NumberField
           label={t('settings.inactiveDays')}
           value={settings.inactiveDays}

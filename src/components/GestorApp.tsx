@@ -170,7 +170,7 @@ function ClientCard({ client, onChanged }: { client: ClientSummary; onChanged: (
             </select>
           </label>
 
-          <div className="ef-stats">
+          <div className="fr-pair">
             <SmallNumber
               label={t('settings.inactiveDays')}
               value={client.inactiveDays}

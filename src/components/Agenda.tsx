@@ -307,7 +307,7 @@ function AppointmentForm({
           ))}
         </datalist>
       </label>
-      <div className="ef-stats">
+      <div className="fr-pair">
         <label className="ef-field">
           <span className="ef-field__label">{t('agenda.date')}</span>
           <input className="ef-input" type="date" required value={form.date} onChange={set('date')} />
@@ -317,7 +317,7 @@ function AppointmentForm({
           <input className="ef-input" type="time" required value={form.time} onChange={set('time')} />
         </label>
       </div>
-      <div className="ef-stats">
+      <div className="fr-pair">
         <label className="ef-field">
           <span className="ef-field__label">{t('services.duration')}</span>
           <select

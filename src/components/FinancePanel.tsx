@@ -49,7 +49,7 @@ export function FinancePanel({ appointments, professionals, today }: Props) {
         </div>
       </div>
 
-      <div className="ef-stats">
+      <div className="ef-stats fr-money">
         <Stat result value={formatCents(finance.receivedCents)} label={t('finance.received')} />
         <Stat value={formatCents(finance.expectedCents)} label={t('finance.expected')} />
         <Stat

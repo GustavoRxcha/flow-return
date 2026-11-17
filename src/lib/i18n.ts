@@ -71,7 +71,7 @@ const pt = {
   'nav.customers': 'Clientes',
   'nav.agenda': 'Agenda',
   'nav.services': 'Serviços',
-  'nav.assistant': 'Atendente IA',
+  'nav.assistant': 'Atendente',
 
   // Início
   'home.whatsappTitle': 'Agendamentos via WhatsApp',
@@ -210,6 +210,8 @@ const pt = {
   'customers.contact': 'Contato',
   'customers.contactOf': 'Contato de {name}',
   'customers.doNotCall': 'Não chamar',
+  'customers.lastShort': 'Último: {date}',
+  'customers.nextShort': 'Próximo: {when}',
   'customers.days_one': '{n} dia',
   'customers.days_other': '{n} dias',
 
@@ -435,7 +437,7 @@ const en: Dictionary = {
   'nav.customers': 'Customers',
   'nav.agenda': 'Schedule',
   'nav.services': 'Services',
-  'nav.assistant': 'AI assistant',
+  'nav.assistant': 'Assistant',
 
   'home.whatsappTitle': 'Bookings via WhatsApp',
   'home.whatsappNote': 'Anyone who books on WhatsApp will show up here.',
@@ -566,6 +568,8 @@ const en: Dictionary = {
   'customers.contact': 'Contact',
   'customers.contactOf': 'Contact {name}',
   'customers.doNotCall': 'Do not contact',
+  'customers.lastShort': 'Last visit: {date}',
+  'customers.nextShort': 'Next: {when}',
   'customers.days_one': '{n} day',
   'customers.days_other': '{n} days',
 
@@ -781,7 +785,7 @@ const es: Dictionary = {
   'nav.customers': 'Clientes',
   'nav.agenda': 'Agenda',
   'nav.services': 'Servicios',
-  'nav.assistant': 'Asistente IA',
+  'nav.assistant': 'Asistente',
 
   'home.whatsappTitle': 'Reservas por WhatsApp',
   'home.whatsappNote': 'Quien reserve por WhatsApp aparecerá aquí.',
@@ -912,6 +916,8 @@ const es: Dictionary = {
   'customers.contact': 'Contacto',
   'customers.contactOf': 'Contacto de {name}',
   'customers.doNotCall': 'No contactar',
+  'customers.lastShort': 'Última: {date}',
+  'customers.nextShort': 'Próxima: {when}',
   'customers.days_one': '{n} día',
   'customers.days_other': '{n} días',
 
