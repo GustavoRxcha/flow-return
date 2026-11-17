@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acceptedProposal, asksOwnAppointments, availabilityIn, availabilityReply, availabilityText, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, freeTimes, isYes, looksLikeName, mentionsSomeoneElse, listServicesInLines, lookupTimes, matchServices, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, nearestTime, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, readTime, stopRequest, systemPrompt, wantsChange, type AssistantContext, type PendingChange, type ReplyFacts } from './assistant'
+import { acceptedProposal, assistantTools, asksOwnAppointments, availabilityIn, availabilityReply, availabilityText, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, freeTimes, isYes, looksLikeName, mentionsSomeoneElse, listServicesInLines, lookupTimes, matchServices, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, nearestTime, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, readTime, stopRequest, systemPrompt, wantsChange, type AssistantContext, type PendingChange, type ReplyFacts } from './assistant'
 import { DEFAULT_ASSISTANT, type Appointment, type Professional, type Service } from './types'
 import { businessFacts, EMPTY_BUSINESS_INFO, type BusinessInfo } from './businessInfo'
 
@@ -582,5 +582,30 @@ describe('respostas com número e horários', () => {
     const withTimes = { ...facts, times: known, offered: known, available }
     expect(findInvented('Tenho das 09:00 às 11:00. Qual fica melhor?', withTimes, context())).toBeNull()
     expect(findInvented('Tenho das 09:00 às 11:00: 09:00, 09:30, 10:00 e 10:30.', withTimes, context())).toContain('uma vez só')
+  })
+})
+
+describe('ferramentas com listas fechadas e dia em AAAA-MM-DD', () => {
+  it('serviço e profissional só aceitam nomes da lista', () => {
+    const [ver] = assistantTools(context())
+    const { properties, required } = ver.function.parameters as unknown as { properties: Record<string, { enum?: string[] }>; required: string[] }
+    expect(properties.servico.enum).toEqual(['Corte', 'Corte + Barba', 'Pezinho'])
+    expect(properties.profissional.enum).toEqual(['Cleber Bigode', 'Rocha Tesoura de Ouro'])
+    expect(required).toEqual(['servico', 'data'])
+  })
+
+  it('o dia em AAAA-MM-DD vale mesmo sem a pessoa ter escrito em português', () => {
+    expect(lookupTimes({ servico: 'Pezinho', data: '2026-11-09' }, context(), [])).toMatchObject({ ok: true, dia: 'segunda-feira, 09/11' })
+  })
+
+  it('dia que já passou ou longe demais cai na regra antiga', () => {
+    expect(lookupTimes({ servico: 'Pezinho', data: '2026-11-01' }, context(), [])).toMatchObject({ ok: false })
+    expect(lookupTimes({ servico: 'Pezinho', data: '2027-03-01' }, context(), [])).toMatchObject({ ok: false })
+  })
+
+  it('o prompt deixa o que muda a cada mensagem no fim, para o resto ser reaproveitado', () => {
+    const prompt = systemPrompt(context())
+    expect(prompt.indexOf('Serviços:')).toBeLessThan(prompt.indexOf('Hoje é'))
+    expect(prompt).toContain('segunda-feira, 09/11: 2026-11-09')
   })
 })

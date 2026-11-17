@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
-import { metaChannel, type SendChannel } from '../src/lib/channel.ts'
+import { CONFIRM_BUTTONS, metaChannel, type SendChannel } from '../src/lib/channel.ts'
 import { phoneFromWhatsApp } from '../src/lib/phone.ts'
 import { AiUnavailable, type ChatModel } from './ai.ts'
 import { assistantTurn, MAX_ASSISTANT_TEXT } from './assistant.ts'
@@ -30,8 +30,11 @@ export function parseMetaWebhook(payload: unknown): IncomingMessage[] {
     (changes ?? []).flatMap(({ field, value }) => {
       const line = value?.metadata?.phone_number_id
       if (field !== 'messages' || !line) return []
-      return (value?.messages ?? []).flatMap(({ id, from, type, text }): IncomingMessage[] => {
+      return (value?.messages ?? []).flatMap(({ id, from, type, text, interactive }): IncomingMessage[] => {
         if (type === 'text' && text?.body) return [{ id, line, from, text: text.body }]
+        // Toque num botão chega como o título dele: "Confirmar" vale como sim, igual a escrever.
+        const button = interactive?.button_reply?.title
+        if (type === 'interactive' && button) return [{ id, line, from, text: button }]
         return MEDIA_TYPES.has(type) ? [{ id, line, from, text: null }] : []
       })
     }),
@@ -40,7 +43,7 @@ export function parseMetaWebhook(payload: unknown): IncomingMessage[] {
 
 interface MetaValue {
   metadata?: { phone_number_id?: string }
-  messages?: Array<{ id: string; from: string; type: string; text?: { body?: string } }>
+  messages?: Array<{ id: string; from: string; type: string; text?: { body?: string }; interactive?: { button_reply?: { id?: string; title?: string } } }>
 }
 
 /** Só a Meta conhece a chave secreta do app. Sem esta conferência, qualquer um falaria em nome de um cliente. */
@@ -77,13 +80,11 @@ export function createInbox(db: Db, channelFor: (line: string) => SendChannel, c
     const texts = waiting.get(key)!
     while (texts.length) {
       const text = texts.splice(0).join('\n').slice(0, MAX_ASSISTANT_TEXT)
-      const reply = await assistantTurn(db, returnClientId, `whatsapp:${phone}`, text, { phone, chat })
-        .then(({ reply }) => reply)
-        .catch((failure: unknown) => {
-          if (failure instanceof AiUnavailable) return OFFLINE_REPLY
-          throw failure
-        })
-      await channelFor(line).send({ phone: from, text: reply })
+      const { reply, confirm } = await assistantTurn(db, returnClientId, `whatsapp:${phone}`, text, { phone, chat }).catch((failure: unknown) => {
+        if (failure instanceof AiUnavailable) return { reply: OFFLINE_REPLY, confirm: false }
+        throw failure
+      })
+      await channelFor(line).send({ phone: from, text: reply, buttons: confirm ? CONFIRM_BUTTONS : undefined })
     }
   }
 

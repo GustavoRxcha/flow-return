@@ -654,6 +654,21 @@ describe('atendente', () => {
     expect(listAppointments(db, id)).toHaveLength(total)
   })
 
+  it('pedido de confirmação sai marcado para ganhar botões, e o toque em Confirmar marca', async () => {
+    const { id, professional } = await prepared()
+    const { text } = nextDay()
+    const first = professional.name.split(' ')[0]
+    const contact = '5511955554444'
+    const ask = await assistantTurn(db, id, contact, `Ana Souza, pezinho ${text} às 14h`, {
+      phone: contact,
+      chat: scripted({ name: 'salvar_cliente', arguments: { nome: 'Ana Souza' } }, `Tenho o Pezinho às 14:00 com o ${first}, pode ser?`),
+    })
+    expect(ask.confirm).toBe(true)
+    const done = await assistantTurn(db, id, contact, 'Confirmar', { phone: contact, chat: scripted('Pronto, Ana. Seu horário está marcado.') })
+    expect(done.booked).toBe(true)
+    expect(done.confirm).toBe(false)
+  })
+
   it('o chat da tela exige um número válido', async () => {
     const cookie = await login(TEST_ACCOUNTS.barbearia)
     const response = await request('/workspace/assistant/test', cookie, { body: { text: 'oi', phone: '123' } })

@@ -7,7 +7,7 @@ import { seedIfEmpty, TEST_ACCOUNTS } from './seed.ts'
 import { createInbox, isSignedByMeta, linkLine, parseMetaWebhook, whatsappWebhook, type Inbox } from './whatsapp.ts'
 import { phoneFromWhatsApp } from '../src/lib/phone.ts'
 import { todayIso } from '../src/lib/dates.ts'
-import type { OutgoingMessage, SendChannel } from '../src/lib/channel.ts'
+import { CONFIRM_BUTTONS, metaBody, type OutgoingMessage, type SendChannel } from '../src/lib/channel.ts'
 
 const SECRET = 'segredo-de-teste'
 const LINE = 'linha-1'
@@ -35,6 +35,20 @@ beforeEach(() => {
   businessId = row.return_client_id
   linkLine(db, LINE, businessId)
   sent = []
+})
+
+describe('botões de confirmação', () => {
+  it('toque no botão chega como o título dele', () => {
+    const tap = { id: 'm1', from: '5511977776666', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'confirmar', title: 'Confirmar' } } }
+    expect(parseMetaWebhook(payload([tap]))).toEqual([incoming('m1', 'Confirmar')])
+  })
+
+  it('mensagem com botões vira interativa; sem botões, texto simples', () => {
+    expect(metaBody({ phone: '5511977776666', text: 'Oi' })).toMatchObject({ type: 'text', text: { body: 'Oi' } })
+    const body = metaBody({ phone: '5511977776666', text: 'Posso confirmar?', buttons: CONFIRM_BUTTONS }) as { type: string; interactive: { action: { buttons: Array<{ reply: { id: string } }> } } }
+    expect(body.type).toBe('interactive')
+    expect(body.interactive.action.buttons.map(({ reply }) => reply.id)).toEqual(['confirmar', 'outro'])
+  })
 })
 
 describe('leitura do aviso da Meta', () => {

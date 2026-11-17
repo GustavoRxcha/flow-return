@@ -61,4 +61,14 @@ Outro provedor precisa de duas peças em `server/whatsapp.ts`: ler o aviso dele 
 
 ## Trocar de IA
 
-A IA entra por um único ponto: `ChatModel`, em `server/ai.ts`. Uma IA paga é outra função com esse mesmo formato. Depois da troca, rode `npm run atendente:avaliar` e leia as conversas.
+A IA entra por um único ponto: `ChatModel`, em `server/ai.ts`.
+
+- **IA por API:** preencha `AI_API_KEY` no `.env`. `AI_PROVIDER` escolhe `gemini` (padrão) ou `openai`, e `AI_MODEL` troca o modelo. Outra IA no formato de chat da OpenAI entra por `AI_BASE_URL`.
+- **Sem chave:** usa o Ollama no próprio computador, como antes.
+- Ao iniciar, o registro mostra qual IA está ligada, sem a chave.
+
+Depois da troca, rode `npm run atendente:avaliar` e leia as conversas.
+
+## Botões de confirmação
+
+Quando a atendente pede um sim (um horário proposto, ou desmarcar e remarcar), a mensagem sai com os botões **Confirmar** e **Outro horário**. O toque chega como o título do botão, e "Confirmar" vale como sim.

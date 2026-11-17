@@ -212,7 +212,10 @@ export function systemPrompt(ctx: AssistantContext): string {
   const { assistant, businessName } = ctx
   const identity = assistant.name || businessName
   const introduction = assistant.name ? `Sou ${assistant.name}, atendente virtual da ${businessName}` : `Sou a atendente virtual da ${businessName}`
-  const calendar = Array.from({ length: CALENDAR_DAYS }, (_, offset) => fullDay(addDays(ctx.today, offset)))
+  const calendar = Array.from({ length: CALENDAR_DAYS }, (_, offset) => {
+    const date = addDays(ctx.today, offset)
+    return `${fullDay(date)}: ${date}`
+  })
   const services = ctx.services.map((service) => `- ${service.name}: ${service.durationMinutes} minutos, ${servicePrice(service)}`)
   const customer = ctx.customerName
     ? `Quem escreve já é cliente e se chama ${ctx.customerName}. Chame pelo primeiro nome e não pergunte o nome de novo.`
@@ -235,7 +238,7 @@ Regras que nunca podem ser quebradas:
 - Só afirme o que está neste texto ou no resultado das ferramentas. O que não estiver aqui, você não sabe: diga que não tem essa informação.
 - Nunca invente serviço, valor, desconto, horário, profissional, endereço, forma de pagamento ou promessa.
 - Quando perguntarem do endereço, copie o endereço inteiro, como está nas informações do negócio.
-- Use ver_horarios só quando já souber o serviço e o dia. Se faltar um deles, pergunte. Copie no campo dia o que a pessoa disse.
+- Use ver_horarios só quando já souber o serviço e o dia. Se faltar um deles, pergunte. No campo data, use o dia que a pessoa pediu no formato AAAA-MM-DD, da lista de próximos dias.
 - Nunca fale de horário livre sem antes usar ver_horarios. Use só os horários que a ferramenta devolver.
 - Quando ver_horarios trouxer disponivel, escreva esse texto inteiro, sem cortar nem resumir. A pessoa precisa ver todos os horários do dia.
 - Se a hora pedida não estiver livre, diga isso primeiro e depois escreva disponivel.
@@ -262,10 +265,6 @@ Regras que nunca podem ser quebradas:
 - Nunca mostre o número da lista à pessoa nem peça um número a ela. Fale do horário pelo serviço, dia e hora.
 - Nunca avise que vai consultar algo nem peça para aguardar. Use a ferramenta e responda com o resultado.
 
-Hoje é ${fullDay(ctx.today)}, e agora são ${ctx.now}.
-Próximos dias:
-${calendar.join('\n')}
-
 Atendimento: ${dayNames(assistant.openDays)}, das ${assistant.opensAt} às ${assistant.closesAt}.
 
 Serviços:
@@ -275,103 +274,93 @@ Profissionais: ${ctx.professionals.map(({ name }) => name).join(', ')}.
 
 ${businessFacts(assistant.info)}
 
+Próximos dias:
+${calendar.join('\n')}
+
+Hoje é ${fullDay(ctx.today)}, e agora são ${ctx.now}.
+
 ${customer}`
 }
 
-/** Ferramentas no formato usado por modelos com chamada de função. */
-export const ASSISTANT_TOOLS = [
-  {
-    type: 'function',
-    function: {
-      name: 'ver_horarios',
-      description: 'Consulta a agenda real. Devolve os horários livres de um serviço em um dia, ou o mais próximo. Use sempre antes de falar de horário.',
-      parameters: {
-        type: 'object',
-        required: ['servico', 'dia'],
-        properties: {
-          servico: { type: 'string', description: 'Nome do serviço na lista.' },
-          dia: { type: 'string', description: 'Dia como a pessoa disse ou em DD/MM. Exemplos: amanhã, sexta, 09/11.' },
-          hora: { type: 'string', description: 'Hora pedida, se houver. Exemplo: 16:00.' },
-          profissional: { type: 'string', description: 'Profissional pedido, se houver.' },
+/** Lista fechada: com ela, a IA só consegue escolher um nome que existe. */
+function oneOf(names: string[], description: string) {
+  return names.length ? { type: 'string', enum: names, description } : { type: 'string', description }
+}
+
+const ISO_DAY = 'Dia no formato AAAA-MM-DD, tirado da lista de próximos dias.'
+
+/**
+ * Ferramentas no formato usado por modelos com chamada de função.
+ * Serviço e profissional vêm de listas fechadas e o dia vem em AAAA-MM-DD: o sistema não precisa adivinhar.
+ */
+export function assistantTools(ctx: Pick<AssistantContext, 'services' | 'professionals'>) {
+  const servico = oneOf(ctx.services.map(({ name }) => name), 'Nome do serviço, exatamente como na lista.')
+  const profissional = oneOf(ctx.professionals.map(({ name }) => name), 'Profissional pedido. Não envie este campo se a pessoa não tiver preferência.')
+  const hora = { type: 'string', description: 'Hora no formato 16:00.' }
+  const data = { type: 'string', description: ISO_DAY }
+  return [
+    {
+      type: 'function',
+      function: {
+        name: 'ver_horarios',
+        description: 'Consulta a agenda real. Devolve os horários livres de um serviço em um dia, ou o mais próximo. Use sempre antes de falar de horário.',
+        parameters: { type: 'object', required: ['servico', 'data'], properties: { servico, data, hora: { ...hora, description: 'Hora pedida, se houver. Exemplo: 16:00.' }, profissional } },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'marcar_horario',
+        description: 'Marca o horário na agenda. Use só depois que a pessoa confirmar serviço, dia, hora e profissional.',
+        parameters: { type: 'object', required: ['servico', 'data', 'hora', 'profissional'], properties: { servico, data, hora, profissional } },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'salvar_cliente',
+        description: 'Guarda o nome de quem ainda não é cliente. Use assim que a pessoa disser o nome.',
+        parameters: { type: 'object', required: ['nome'], properties: { nome: { type: 'string', description: 'Nome que a pessoa informou.' } } },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'ver_meus_horarios',
+        description: 'Lista os próximos horários marcados no número de quem está escrevendo. Use antes de desmarcar ou remarcar.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'desmarcar_horario',
+        description: 'Prepara o cancelamento de um horário de ver_meus_horarios. O sistema só cancela depois que a pessoa confirmar.',
+        parameters: { type: 'object', required: ['numero'], properties: { numero: { type: 'string', description: 'Número do horário na lista de ver_meus_horarios.' } } },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'remarcar_horario',
+        description: 'Prepara a troca de um horário de ver_meus_horarios para outro dia ou hora. O sistema só troca depois que a pessoa confirmar.',
+        parameters: {
+          type: 'object',
+          required: ['numero', 'data', 'hora'],
+          properties: { numero: { type: 'string', description: 'Número do horário na lista de ver_meus_horarios.' }, data: { ...data, description: `Novo dia. ${ISO_DAY}` }, hora, profissional },
         },
       },
     },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'marcar_horario',
-      description: 'Marca o horário na agenda. Use só depois que a pessoa confirmar serviço, dia, hora e profissional.',
-      parameters: {
-        type: 'object',
-        required: ['servico', 'dia', 'hora', 'profissional'],
-        properties: {
-          servico: { type: 'string', description: 'Nome do serviço na lista.' },
-          dia: { type: 'string', description: 'Dia em DD/MM.' },
-          hora: { type: 'string', description: 'Hora no formato 16:00.' },
-          profissional: { type: 'string', description: 'Nome do profissional.' },
-        },
+    {
+      type: 'function',
+      function: {
+        name: 'parar_mensagens',
+        description: 'Registra que a pessoa não quer receber mensagens automáticas.',
+        parameters: { type: 'object', properties: {} },
       },
     },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'salvar_cliente',
-      description: 'Guarda o nome de quem ainda não é cliente. Use assim que a pessoa disser o nome.',
-      parameters: {
-        type: 'object',
-        required: ['nome'],
-        properties: { nome: { type: 'string', description: 'Nome que a pessoa informou.' } },
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'ver_meus_horarios',
-      description: 'Lista os próximos horários marcados no número de quem está escrevendo. Use antes de desmarcar ou remarcar.',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'desmarcar_horario',
-      description: 'Prepara o cancelamento de um horário de ver_meus_horarios. O sistema só cancela depois que a pessoa confirmar.',
-      parameters: {
-        type: 'object',
-        required: ['numero'],
-        properties: { numero: { type: 'string', description: 'Número do horário na lista de ver_meus_horarios.' } },
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'remarcar_horario',
-      description: 'Prepara a troca de um horário de ver_meus_horarios para outro dia ou hora. O sistema só troca depois que a pessoa confirmar.',
-      parameters: {
-        type: 'object',
-        required: ['numero', 'dia', 'hora'],
-        properties: {
-          numero: { type: 'string', description: 'Número do horário na lista de ver_meus_horarios.' },
-          dia: { type: 'string', description: 'Novo dia, como a pessoa disse ou em DD/MM.' },
-          hora: { type: 'string', description: 'Nova hora no formato 16:00.' },
-          profissional: { type: 'string', description: 'Profissional pedido, se houver.' },
-        },
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'parar_mensagens',
-      description: 'Registra que a pessoa não quer receber mensagens automáticas.',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-]
+  ]
+}
 
 export type ToolArgs = Record<string, unknown>
 
@@ -387,14 +376,28 @@ interface Slot {
   time: string | null
 }
 
+/**
+ * O dia pedido. A IA manda em AAAA-MM-DD e vale qualquer dia de hoje até o fim da busca:
+ * a pergunta de confirmação, escrita pelo sistema, mostra o dia por extenso antes de marcar.
+ * Sem esse formato, vale o jeito antigo: o dia precisa ter sido dito pela pessoa ou oferecido pelo sistema.
+ */
+function requestedDay(args: ToolArgs, ctx: AssistantContext, conversationDates: string[]): string | undefined {
+  const iso = textArg(args, 'data')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const date = parseDate(iso)
+    if (date && date >= ctx.today && date <= addDays(ctx.today, SEARCH_DAYS)) return date
+  }
+  const asked = readDate(plain(textArg(args, 'dia') || iso), ctx.today)
+  return asked && conversationDates.includes(asked) ? asked : conversationDates.at(-1)
+}
+
 /** Traduz o que a IA pediu para dados do sistema. O que não existir volta como erro para ela corrigir. */
 function resolveSlot(args: ToolArgs, ctx: AssistantContext, conversationDates: string[]): Slot | { ok: false; erro: string; opcoes?: string[] } {
   const matches = matchServices(ctx.services, textArg(args, 'servico'))
   if (!matches.length) return { ok: false, erro: 'Esse serviço não existe. Use um nome da lista.', opcoes: ctx.services.map(({ name }) => name) }
   if (matches.length > 1) return { ok: false, erro: 'Mais de um serviço combina. Pergunte qual a pessoa quer.', opcoes: matches.map(({ name }) => name) }
 
-  const asked = readDate(plain(textArg(args, 'dia')), ctx.today)
-  const date = asked && conversationDates.includes(asked) ? asked : conversationDates.at(-1)
+  const date = requestedDay(args, ctx, conversationDates)
   if (!date) return { ok: false, erro: 'A pessoa ainda não disse o dia. Pergunte.' }
 
   const wanted = plain(textArg(args, 'profissional'))
@@ -571,8 +574,7 @@ export function prepareCancel(args: ToolArgs, ctx: AssistantContext): PendingCha
 export function prepareMove(args: ToolArgs, ctx: AssistantContext, conversationDates: string[]): PendingChange | { ok: false; erro: string; opcoes?: string[] } {
   const own = ownAt(args, ctx)
   if (!own) return NOT_OWN
-  const asked = readDate(plain(textArg(args, 'dia')), ctx.today)
-  const date = asked && conversationDates.includes(asked) ? asked : conversationDates.at(-1)
+  const date = requestedDay(args, ctx, conversationDates)
   if (!date) return { ok: false, erro: 'A pessoa ainda não disse o novo dia. Pergunte.' }
   const hour = textArg(args, 'hora')
   const time = hour ? readTime(/^\d{1,2}$/.test(hour) ? `as ${hour}` : plain(hour), ctx.assistant.opensAt, ctx.assistant.closesAt) : null

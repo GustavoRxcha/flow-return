@@ -1,8 +1,8 @@
-import { acceptedProposal, asksOwnAppointments, ASSISTANT_TOOLS, availabilityIn, availabilityReply, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, isYes, listServicesInLines, looksLikeName, lookupTimes, mentionsSomeoneElse, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, stopRequest, systemPrompt, wantsChange, timesIn, type AssistantContext, type Availability, type PendingChange, type ToolArgs } from '../src/lib/assistant.ts'
+import { acceptedProposal, asksOwnAppointments, assistantTools, availabilityIn, availabilityReply, changeRequest, confirmedBy, confirmsBooking, datesInConversation, findInvented, isYes, listServicesInLines, looksLikeName, lookupTimes, mentionsSomeoneElse, myAppointments, nameFromAnswer, nameIsForSomeoneElse, nameWasSaid, prepareBooking, prepareCancel, prepareMove, readDate, requestToLookUp, stopRequest, systemPrompt, wantsChange, timesIn, type AssistantContext, type Availability, type PendingChange, type ToolArgs } from '../src/lib/assistant.ts'
 import { todayIso } from '../src/lib/dates.ts'
 import { formatCents } from '../src/lib/format.ts'
 import { DEFAULT_ASSISTANT, type AssistantSettings } from '../src/lib/types.ts'
-import { ollamaChat, type ChatMessage, type ChatModel } from './ai.ts'
+import { configuredChat, type ChatMessage, type ChatModel } from './ai.ts'
 import type { Db } from './db.ts'
 import { createAppointment, deleteOwnAppointment, getReturnClient, listAppointments, listOwnAppointments, listProfessionals, listServices, loadState, moveOwnAppointment } from './repo.ts'
 import { EMPTY_BUSINESS_INFO, type BusinessInfo } from '../src/lib/businessInfo.ts'
@@ -11,10 +11,13 @@ import { EMPTY_BUSINESS_INFO, type BusinessInfo } from '../src/lib/businessInfo.
 const CONVERSATION_TTL_MS = 6 * 60 * 60 * 1000
 /** Mensagens guardadas por conversa. */
 const MAX_HISTORY = 40
-/** Tentativas da IA em cada mensagem, somando consultas e correções. */
-const MAX_ROUNDS = 7
-/** A segunda tentativa guarda o contexto da conversa. Depois disso, o sistema responde e a pessoa não espera mais. */
-const MAX_RETRIES_WITH_ANSWER = 2
+/**
+ * Chamadas à IA em cada mensagem, somando consultas e a correção. Cada chamada é espera para a pessoa:
+ * o sistema já faz sozinho as consultas óbvias, então quase sempre basta uma.
+ */
+const MAX_ROUNDS = 4
+/** Resposta barrada ganha uma única chance de ser reescrita. Depois, o sistema responde com o que tem. */
+const MAX_REWRITES = 1
 /** Maior mensagem que a atendente lê. */
 export const MAX_ASSISTANT_TEXT = 500
 const MAX_CUSTOMER_NAME = 80
@@ -121,6 +124,8 @@ export interface TurnResult {
   booked: boolean
   /** O que ela consultou ou fez no sistema, para acompanhar no teste. */
   trail: string[]
+  /** A resposta pede um sim: no WhatsApp ela sai com botões de confirmar. */
+  confirm: boolean
 }
 
 /** Recebe uma mensagem e devolve a resposta. O WhatsApp vai chamar esta mesma função. */
@@ -129,7 +134,7 @@ export async function assistantTurn(
   returnClientId: string,
   contact: string,
   text: string,
-  { phone, now = new Date(), chat = ollamaChat }: TurnOptions = {},
+  { phone, now = new Date(), chat = configuredChat }: TurnOptions = {},
 ): Promise<TurnResult> {
   const state = loadState(db, returnClientId)
   const today = todayIso(now)
@@ -307,10 +312,11 @@ export async function assistantTurn(
 
   let reply = SAFE_REPLY
   let barred = 0
+  const tools = assistantTools(ctx)
   // O que muda a agenda sai escrito pelo sistema. A IA só responde se a pessoa perguntou mais alguma coisa.
   const settled = () => pending !== null || (doneReply !== null && !text.includes('?'))
   for (let round = 0; round < MAX_ROUNDS && !settled(); round++) {
-    const answer = await chat([{ role: 'system', content: systemPrompt(ctx) }, ...history], ASSISTANT_TOOLS)
+    const answer = await chat([{ role: 'system', content: systemPrompt(ctx) }, ...history], tools)
     if (answer.toolCalls.length) {
       history.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls })
       for (const call of answer.toolCalls) {
@@ -332,7 +338,8 @@ export async function assistantTurn(
     }
     trail.push(`Resposta barrada: ${problem}`)
     barred += 1
-    if (barred >= MAX_RETRIES_WITH_ANSWER && (available || doneReply)) break
+    // Com a agenda já consultada ou a ação já feita, o sistema tem a resposta certa: não faz a pessoa esperar outra volta.
+    if (barred > MAX_REWRITES || available || doneReply) break
     history.push({ role: 'system', content: `Sua resposta não foi enviada. ${problem} Escreva de novo.` })
   }
   if (reply === SAFE_REPLY && doneReply) reply = doneReply
@@ -351,5 +358,7 @@ export async function assistantTurn(
     changed: changed || saved.changed,
     pending,
   })
-  return { reply, booked, trail }
+  // Pedido de confirmação: a alteração preparada ou um horário proposto que o sim já marcaria.
+  const confirm = waiting !== null || (!booked && !stopped && acceptedProposal(reply, 'sim', ctx, contents('user')) !== null)
+  return { reply, booked, trail, confirm }
 }

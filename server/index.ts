@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { serve } from '@hono/node-server'
+import { configuredAi } from './ai.ts'
 import { createApp } from './app.ts'
 import { startWhatsApp } from './whatsapp.ts'
 import { openDb } from './db.ts'
@@ -19,6 +20,7 @@ if (!production) {
 
 serve({ fetch: createApp(db, { secureCookies: production }).fetch, port: PORT }, () => {
   console.log(`API em http://localhost:${PORT}`)
+  console.log(`Atendente: ${configuredAi().label}`)
 })
 
 // Porta só do WhatsApp: o túnel público não alcança o login nem as telas.
